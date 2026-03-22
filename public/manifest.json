@@ -1,0 +1,6 @@
+ "name": "Maintenance Tracker",
+  "short_name": "MaintTracker",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c0e12",
+  "theme_color": "#0c0e12"
