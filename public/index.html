@@ -118,12 +118,12 @@ body{font-family:var(--sans);background:var(--bg);color:var(--tx);min-height:100
 // CONFIG & HELPERS
 // ═══════════════════════════════════════
 var API = "";
-var FILLERS = ["A Filler","B Filler","C Filler","F Filler","G Filler","H Filler","J Filler","K Filler","M Filler","R Filler"];
-var FILLER_COLORS = {"A Filler":"#e05545","B Filler":"#e08840","C Filler":"#d4b030","F Filler":"#58b050","G Filler":"#38a8a0","H Filler":"#4090e0","J Filler":"#6870d8","K Filler":"#a060c8","M Filler":"#d060a0","R Filler":"#e06878"};
-var TAB_NAMES = ["Dashboard","Today's Log","Parts Catalog","Shift Report","History","Technicians"];
+var LINES = ["A LINE","B LINE","C LINE","F LINE","G LINE","H LINE","J LINE","K LINE","M LINE","R LINE"];
+var LINE_COLORS = {"A LINE":"#e05545","B LINE":"#e08840","C LINE":"#d4b030","F LINE":"#58b050","G LINE":"#38a8a0","H LINE":"#4090e0","J LINE":"#6870d8","K LINE":"#a060c8","M LINE":"#d060a0","R LINE":"#e06878"};
+var TAB_NAMES = ["Dashboard","Today's Log","Parts Catalog","Shift Report","History","Techs"];
 
 var state = {
-  tab: 0, events: [], timers: {}, catalog: [], equipment: [], technicians: [],
+  tab: 0, events: [], timers: {}, catalog: [], equipment: [], techs: [],
   shiftLabel: "", historyDate: today(), searchPart: "", selectedTechs: {}
 };
 
@@ -153,7 +153,7 @@ async function loadAll() {
     api("GET","/api/technicians")
   ]);
   state.events = results[0].map(function(e){
-    return {id:e.id,filler:e.filler,equipmentId:e.equipment_id,issue:e.issue,resolution:e.resolution,
+    return {id:e.id,filler:e.line,equipmentId:e.equipment_id,issue:e.issue,resolution:e.resolution,
       startTime:e.start_time,stopTime:e.stop_time,durationMin:e.duration_min,date:e.date,timestamp:e.timestamp,
       parts:(e.parts||[]).map(function(p){return{id:p.id,name:p.name,partNumber:p.part_number,qty:p.qty}}),
       techs:e.techs||[]};
@@ -162,7 +162,7 @@ async function loadAll() {
   state.catalog = results[2].map(function(p){
     return {id:p.id,name:p.name,partNumber:p.part_number,description:p.description,supplier:p.supplier,
       location:p.location,photoFilename:p.photo_filename,usageCount:p.usage_count,lastUsed:p.last_used,
-      fillersUsed:p.fillersUsed||[],equipmentUsed:p.equipmentUsed||[]};
+      linesUsed:p.fillersUsed||[],equipmentUsed:p.equipmentUsed||[]};
   });
   state.equipment = results[3];
   state.technicians = results[4];
@@ -214,10 +214,10 @@ function renderDashboard(el) {
 
   html += '<div class="section-title"><span style="color:var(--ac)">▣</span> Filler Status Board</div>';
   html += '<div class="filler-grid">';
-  FILLERS.forEach(function(f) {
+  LINES.forEach(function(f) {
     var t = state.timers[f];
     var on = t && t.running;
-    var color = FILLER_COLORS[f];
+    var color = LINE_COLORS[f];
     var elapsed = on ? Date.now() - t.startTime : 0;
     var selectedForFiller = state.selectedTechs[f] || [];
     var timerTechs = (on && t.techs) ? t.techs : [];
