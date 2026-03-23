@@ -86,6 +86,13 @@ body{font-family:var(--sans);background:var(--bg);color:var(--tx);min-height:100
 
 .empty{text-align:center;padding:36px;color:var(--td);font-size:14px}
 .hidden{display:none}
+
+.tech-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;margin-bottom:6px}
+.tech-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;border:1px solid var(--bd);background:var(--sa);color:var(--td)}
+.tech-chip.selected{background:#4090e030;color:#4090e0;border-color:#4090e050}
+.tech-chip.display{cursor:default;background:#4090e020;color:#4090e0;border:none;font-size:10px;padding:2px 8px}
+.tech-manage-row{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--bd)}
+.tech-manage-name{flex:1;font-size:15px;font-weight:600}
 </style>
 </head>
 <body>
@@ -113,11 +120,11 @@ body{font-family:var(--sans);background:var(--bg);color:var(--tx);min-height:100
 var API = "";
 var FILLERS = ["A Filler","B Filler","C Filler","F Filler","G Filler","H Filler","J Filler","K Filler","M Filler","R Filler"];
 var FILLER_COLORS = {"A Filler":"#e05545","B Filler":"#e08840","C Filler":"#d4b030","F Filler":"#58b050","G Filler":"#38a8a0","H Filler":"#4090e0","J Filler":"#6870d8","K Filler":"#a060c8","M Filler":"#d060a0","R Filler":"#e06878"};
-var TAB_NAMES = ["Dashboard","Today's Log","Parts Catalog","Shift Report","History"];
+var TAB_NAMES = ["Dashboard","Today's Log","Parts Catalog","Shift Report","History","Technicians"];
 
 var state = {
-  tab: 0, events: [], timers: {}, catalog: [], equipment: [],
-  shiftLabel: "", historyDate: today(), searchPart: ""
+  tab: 0, events: [], timers: {}, catalog: [], equipment: [], technicians: [],
+  shiftLabel: "", historyDate: today(), searchPart: "", selectedTechs: {}
 };
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
@@ -142,12 +149,14 @@ async function loadAll() {
     api("GET","/api/events"),
     api("GET","/api/timers"),
     api("GET","/api/catalog"),
-    api("GET","/api/equipment")
+    api("GET","/api/equipment"),
+    api("GET","/api/technicians")
   ]);
   state.events = results[0].map(function(e){
     return {id:e.id,filler:e.filler,equipmentId:e.equipment_id,issue:e.issue,resolution:e.resolution,
       startTime:e.start_time,stopTime:e.stop_time,durationMin:e.duration_min,date:e.date,timestamp:e.timestamp,
-      parts:(e.parts||[]).map(function(p){return{id:p.id,name:p.name,partNumber:p.part_number,qty:p.qty}})};
+      parts:(e.parts||[]).map(function(p){return{id:p.id,name:p.name,partNumber:p.part_number,qty:p.qty}}),
+      techs:e.techs||[]};
   });
   state.timers = results[1];
   state.catalog = results[2].map(function(p){
@@ -156,6 +165,7 @@ async function loadAll() {
       fillersUsed:p.fillersUsed||[],equipmentUsed:p.equipmentUsed||[]};
   });
   state.equipment = results[3];
+  state.technicians = results[4];
 }
 
 // ═══════════════════════════════════════
@@ -169,6 +179,7 @@ function render() {
   else if (state.tab === 2) renderCatalog(main);
   else if (state.tab === 3) renderShiftReport(main);
   else if (state.tab === 4) renderHistory(main);
+  else if (state.tab === 5) renderTechnicians(main);
 }
 
 function renderTabs() {
@@ -208,17 +219,36 @@ function renderDashboard(el) {
     var on = t && t.running;
     var color = FILLER_COLORS[f];
     var elapsed = on ? Date.now() - t.startTime : 0;
+    var selectedForFiller = state.selectedTechs[f] || [];
+    var timerTechs = (on && t.techs) ? t.techs : [];
+
     html += '<div class="filler-card'+(on?" running":"")+'" style="border-color:'+(on?color+"60":"var(--bd)")+'">';
     html += '<div class="filler-icon" style="background:'+(on?color:color+"20")+';color:'+(on?"#fff":color)+'">'+f.charAt(0)+'</div>';
     html += '<div class="filler-name" style="color:'+(on?"var(--wh)":"var(--tx)")+'">'+f+'</div>';
     if (on) {
       html += '<div class="filler-timer" data-filler="'+f+'" style="color:'+color+'">'+timerDisp(elapsed)+'</div>';
       html += '<div class="filler-since">since '+shortTime(t.startTime)+'</div>';
+      // Show who's responding
+      if (timerTechs.length > 0) {
+        html += '<div class="tech-chips" style="justify-content:center;margin-bottom:6px">';
+        timerTechs.forEach(function(tc) { html += '<span class="tech-chip display">'+esc(tc.name)+'</span>'; });
+        html += '</div>';
+      }
       html += '<button class="btn btn-stop" onclick="stopFiller(\''+f+'\')"><span style="width:10px;height:10px;border-radius:2px;background:#fff;display:inline-block"></span> STOP</button>';
       html += '<div class="filler-pulse"><div class="filler-pulse-bar" style="background:'+color+'"></div></div>';
     } else {
       html += '<div class="filler-timer" style="color:var(--tm)">—:——</div>';
       html += '<div class="filler-since">idle</div>';
+      // Tech picker before start
+      if (state.technicians.length > 0) {
+        html += '<div style="width:100%;margin-bottom:6px"><div style="font-size:10px;color:var(--td);font-family:var(--mono);text-transform:uppercase;margin-bottom:3px;text-align:left">Responding:</div>';
+        html += '<div class="tech-chips">';
+        state.technicians.forEach(function(tc) {
+          var sel = selectedForFiller.indexOf(tc.id) >= 0;
+          html += '<span class="tech-chip'+(sel?" selected":"")+'" onclick="toggleFillerTech(\''+f+'\',\''+tc.id+'\')">'+esc(tc.name)+'</span>';
+        });
+        html += '</div></div>';
+      }
       html += '<button class="btn btn-start" onclick="startFiller(\''+f+'\')"><span style="width:0;height:0;border-left:8px solid white;border-top:5px solid transparent;border-bottom:5px solid transparent;display:inline-block"></span> START</button>';
     }
     html += '</div>';
@@ -254,15 +284,27 @@ function startTimerTick() {
   }, 1000);
 }
 
+function toggleFillerTech(filler, techId) {
+  if (!state.selectedTechs[filler]) state.selectedTechs[filler] = [];
+  var arr = state.selectedTechs[filler];
+  var idx = arr.indexOf(techId);
+  if (idx >= 0) { arr.splice(idx, 1); }
+  else { arr.push(techId); }
+  render();
+}
+
 async function startFiller(f) {
-  var result = await api("POST","/api/timers/"+encodeURIComponent(f)+"/start");
+  var techIds = state.selectedTechs[f] || [];
+  var result = await api("POST","/api/timers/"+encodeURIComponent(f)+"/start", {techIds: techIds});
   state.timers[f] = result;
+  state.selectedTechs[f] = [];
+  await loadAll();
   render();
 }
 
 async function stopFiller(f) {
   var result = await api("POST","/api/timers/"+encodeURIComponent(f)+"/stop");
-  showEventModal(f, result.startTime, result.stopTime, null);
+  showEventModal(f, result.startTime, result.stopTime, null, result.techIds || []);
 }
 
 // ═══════════════════════════════════════
@@ -281,6 +323,8 @@ function eventCardHTML(e, showDel) {
   if (e.issue) html += '<div class="event-field"><span class="event-field-label">Issue: </span>'+esc(e.issue)+'</div>';
   if (e.resolution) html += '<div class="event-field"><span class="event-field-label">Fix: </span>'+esc(e.resolution)+'</div>';
   if (partsText) html += '<div class="event-field"><span class="event-field-label">Parts: </span><span style="font-size:12px">'+partsText+'</span></div>';
+  var techNames = (e.techs||[]).map(function(t){return esc(t.name)}).join(", ");
+  if (techNames) html += '<div class="event-field"><span class="event-field-label">Responded: </span><span style="font-size:12px;color:var(--bl)">'+techNames+'</span></div>';
   html += '<div class="event-actions">';
   html += '<button class="btn btn-edit" style="flex:1" onclick="editEvent(\''+e.id+'\')">✎ Edit</button>';
   if (showDel) html += '<button class="btn btn-delete" style="flex:1" onclick="deleteEvent(\''+e.id+'\')">✕ Delete</button>';
@@ -408,8 +452,9 @@ function renderHistory(el) {
 // EVENT MODAL
 // ═══════════════════════════════════════
 var modalParts = [];
+var modalTechIds = [];
 
-function showEventModal(filler, startTime, stopTime, existingEvent) {
+function showEventModal(filler, startTime, stopTime, existingEvent, preselectedTechIds) {
   var isEdit = !!existingEvent;
   var durMs = stopTime - startTime;
   var durMins = Math.round(durMs / 60000);
@@ -417,8 +462,10 @@ function showEventModal(filler, startTime, stopTime, existingEvent) {
 
   if (isEdit) {
     modalParts = (existingEvent.parts||[]).map(function(p){return{id:p.id||uid(),name:p.name,partNumber:p.partNumber||"",qty:p.qty||1}});
+    modalTechIds = (existingEvent.techs||[]).map(function(t){return t.id});
   } else {
     modalParts = [];
+    modalTechIds = preselectedTechIds || [];
   }
 
   var html = '<div class="modal-overlay" onclick="if(event.target===this)closeModal()">';
@@ -432,6 +479,16 @@ function showEventModal(filler, startTime, stopTime, existingEvent) {
   html += '<div><div class="label" style="margin:0">Stopped</div><div style="font-size:15px;font-weight:700;font-family:var(--mono);margin-top:2px">'+shortTime(stopTime)+'</div></div>';
   html += '<div><div class="label" style="margin:0">Duration</div><div style="font-size:15px;font-weight:800;font-family:var(--mono);margin-top:2px;color:'+fc+'">'+durText(durMins)+'</div></div>';
   html += '</div>';
+
+  // Tech picker
+  html += '<div style="margin-bottom:14px"><label class="label">Who Responded</label>';
+  html += '<div class="tech-chips" id="modal-techs">';
+  state.technicians.forEach(function(tc) {
+    var sel = modalTechIds.indexOf(tc.id) >= 0;
+    html += '<span class="tech-chip'+(sel?" selected":"")+'" onclick="toggleModalTech(\''+tc.id+'\')">'+esc(tc.name)+'</span>';
+  });
+  if (state.technicians.length === 0) html += '<span style="font-size:12px;color:var(--tm)">No technicians added yet. Go to Technicians tab to add.</span>';
+  html += '</div></div>';
 
   html += '<div style="margin-bottom:14px"><label class="label">Equipment ID / Component</label>';
   html += '<input class="input" id="modal-eq" placeholder="e.g. CONV-101, Motor #3" value="'+esc(isEdit?existingEvent.equipmentId||"":"")+'">';
@@ -455,6 +512,21 @@ function showEventModal(filler, startTime, stopTime, existingEvent) {
 
   document.getElementById("modal-root").innerHTML = html;
   renderModalParts();
+}
+
+function toggleModalTech(techId) {
+  var idx = modalTechIds.indexOf(techId);
+  if (idx >= 0) { modalTechIds.splice(idx, 1); }
+  else { modalTechIds.push(techId); }
+  // Re-render just the tech chips
+  var container = document.getElementById("modal-techs");
+  if (!container) return;
+  var html = "";
+  state.technicians.forEach(function(tc) {
+    var sel = modalTechIds.indexOf(tc.id) >= 0;
+    html += '<span class="tech-chip'+(sel?" selected":"")+'" onclick="toggleModalTech(\''+tc.id+'\')">'+esc(tc.name)+'</span>';
+  });
+  container.innerHTML = html;
 }
 
 function renderModalParts() {
@@ -485,6 +557,7 @@ async function saveNewEvent(filler, startTime, stopTime, durMins) {
     resolution: document.getElementById("modal-reso").value.trim(),
     startTime: startTime, stopTime: stopTime, durationMin: durMins,
     parts: modalParts.filter(function(p){return p.name.trim()}),
+    techIds: modalTechIds.slice(),
     date: today(), timestamp: new Date().toISOString()
   };
   await api("POST", "/api/events", ev);
@@ -501,6 +574,7 @@ async function saveEditedEvent(id, filler, startTime, stopTime, durMins, date, t
     resolution: document.getElementById("modal-reso").value.trim(),
     startTime: startTime, stopTime: stopTime, durationMin: durMins,
     parts: modalParts.filter(function(p){return p.name.trim()}),
+    techIds: modalTechIds.slice(),
     date: date, timestamp: timestamp
   };
   await api("PUT", "/api/events/"+id, ev);
@@ -512,7 +586,7 @@ async function saveEditedEvent(id, filler, startTime, stopTime, durMins, date, t
 function editEvent(id) {
   var e = state.events.find(function(ev){return ev.id===id});
   if (!e) return;
-  showEventModal(e.filler, e.startTime, e.stopTime, e);
+  showEventModal(e.filler, e.startTime, e.stopTime, e, null);
 }
 
 async function deleteEvent(id) {
@@ -617,6 +691,57 @@ async function deleteCatalogPart(id) {
 }
 
 // ═══════════════════════════════════════
+// TECHNICIANS MANAGEMENT
+// ═══════════════════════════════════════
+function renderTechnicians(el) {
+  var html = '<div class="card">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">';
+  html += '<div style="font-size:15px;font-weight:700">Manage Technicians</div>';
+  html += '<div style="font-size:12px;color:var(--td)">'+state.technicians.length+' techs</div></div>';
+  html += '<p style="color:var(--td);font-size:13px;margin-bottom:16px">Add or remove technicians who respond to downtime calls. These names appear as selectable options on the filler cards and in the event detail form.</p>';
+
+  // Add new tech
+  html += '<div style="display:flex;gap:8px;margin-bottom:18px">';
+  html += '<input class="input" style="flex:1" id="new-tech-name" placeholder="Enter technician name..." onkeydown="if(event.key===\'Enter\')addTechnician()">';
+  html += '<button class="btn btn-primary" style="width:auto;padding:10px 16px;white-space:nowrap" onclick="addTechnician()">+ Add</button>';
+  html += '</div>';
+
+  if (state.technicians.length === 0) {
+    html += '<div class="empty">No technicians added yet. Type a name above and tap Add.</div>';
+  } else {
+    state.technicians.forEach(function(tc) {
+      html += '<div class="tech-manage-row">';
+      html += '<div style="width:36px;height:36px;border-radius:50%;background:var(--bl)20;color:var(--bl);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;font-family:var(--mono)">'+esc(tc.name.charAt(0).toUpperCase())+'</div>';
+      html += '<div class="tech-manage-name">'+esc(tc.name)+'</div>';
+      html += '<button class="btn btn-delete btn-sm" style="width:auto;flex:none" onclick="deleteTechnician(\''+tc.id+'\')">✕ Remove</button>';
+      html += '</div>';
+    });
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+async function addTechnician() {
+  var input = document.getElementById("new-tech-name");
+  var name = input.value.trim();
+  if (!name) return;
+  var result = await api("POST", "/api/technicians", {name: name});
+  if (result.error) { alert(result.error); return; }
+  input.value = "";
+  await loadAll();
+  render();
+}
+
+async function deleteTechnician(id) {
+  var tech = state.technicians.find(function(t){return t.id===id});
+  var name = tech ? tech.name : "this technician";
+  if (!confirm("Remove "+name+"? They will be removed from future selections but past events will keep their name.")) return;
+  await api("DELETE", "/api/technicians/"+id);
+  await loadAll();
+  render();
+}
+
+// ═══════════════════════════════════════
 // PDF GENERATION
 // ═══════════════════════════════════════
 function printReport() { printPDF(state.events.filter(function(e){return e.date===today()}), today(), state.shiftLabel); }
@@ -643,10 +768,11 @@ function printPDF(evts, date, shift) {
   h += '<div class="sb"><div class="v">'+durText(total)+'</div><div class="l">Total Downtime</div></div>';
   h += '<div class="sb"><div class="v">'+ap.length+'</div><div class="l">Parts Used</div></div></div>';
   h += '<div class="sec">Downtime Events</div>';
-  h += '<table><thead><tr><th>#</th><th>Filler</th><th>Equipment</th><th>Start</th><th>Stop</th><th>Duration</th><th>Issue</th><th>Resolution</th><th>Parts</th></tr></thead><tbody>';
+  h += '<table><thead><tr><th>#</th><th>Filler</th><th>Responded</th><th>Equipment</th><th>Start</th><th>Stop</th><th>Duration</th><th>Issue</th><th>Resolution</th><th>Parts</th></tr></thead><tbody>';
   evts.forEach(function(e,i){
     var pts=(e.parts||[]).map(function(p){var s=p.name;if(p.partNumber)s+=" ("+p.partNumber+")";if(p.qty>1)s+=" x"+p.qty;return s}).join(", ")||"None";
-    h+='<tr><td>'+(i+1)+'</td><td><b>'+e.filler+'</b></td><td>'+(e.equipmentId||"—")+'</td>';
+    var techNames=(e.techs||[]).map(function(t){return t.name}).join(", ")||"—";
+    h+='<tr><td>'+(i+1)+'</td><td><b>'+e.filler+'</b></td><td>'+techNames+'</td><td>'+(e.equipmentId||"—")+'</td>';
     h+='<td>'+shortTime(e.startTime)+'</td><td>'+shortTime(e.stopTime)+'</td>';
     h+='<td>'+durText(e.durationMin)+'</td><td>'+(e.issue||"—")+'</td><td>'+(e.resolution||"—")+'</td><td>'+pts+'</td></tr>';
   });
