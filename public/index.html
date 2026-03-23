@@ -215,7 +215,7 @@ function renderDashboard(el) {
 
   html += '<div class="section-title"><span style="color:var(--ac)">▣</span> Filler Status Board</div>';
   html += '<div class="filler-grid">';
-  FILLERS.forEach(function(f) {
+  LINES.forEach(function(f) {
     var t = state.timers[f];
     var on = t && t.running;
     var color = FILLER_COLORS[f];
