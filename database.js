@@ -78,6 +78,27 @@ function initDB() {
       start_time INTEGER
     );
 
+    CREATE TABLE IF NOT EXISTS technicians (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE
+    );
+
+    CREATE TABLE IF NOT EXISTS event_techs (
+      event_id TEXT NOT NULL,
+      tech_id TEXT NOT NULL,
+      PRIMARY KEY (event_id, tech_id),
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+      FOREIGN KEY (tech_id) REFERENCES technicians(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS timer_techs (
+      filler TEXT NOT NULL,
+      tech_id TEXT NOT NULL,
+      PRIMARY KEY (filler, tech_id),
+      FOREIGN KEY (filler) REFERENCES timers(filler) ON DELETE CASCADE,
+      FOREIGN KEY (tech_id) REFERENCES technicians(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_events_date ON events(date);
     CREATE INDEX IF NOT EXISTS idx_events_filler ON events(filler);
     CREATE INDEX IF NOT EXISTS idx_event_parts_event ON event_parts(event_id);
