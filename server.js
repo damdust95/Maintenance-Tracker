@@ -309,11 +309,6 @@ app.post("/api/auth/login", async function (req, res) {
       return res.status(401).json({ error: "Invalid name or password" });
     }
     var tech = result.rows[0];
-    // Only allow enabled shifts to log in (currently 2nd shift only)
-    var allowedShifts = ["2nd"];
-    if (allowedShifts.indexOf(tech.shift) < 0) {
-      return res.status(403).json({ error: "Login not enabled for " + tech.shift + " shift yet. Contact admin." });
-    }
     res.json({ success: true, id: tech.id, name: tech.name, shift: tech.shift });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
