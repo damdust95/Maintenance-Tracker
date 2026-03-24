@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0c0e12">
@@ -80,14 +82,16 @@ body::before{content:"";position:fixed;top:50%;left:50%;transform:translate(-50%
 .textarea{width:100%;padding:10px 12px;background:var(--sa);border:1px solid var(--bd);border-radius:6px;color:var(--tx);font-size:14px;font-family:var(--sans);outline:none;box-sizing:border-box;min-height:70px;resize:vertical;text-transform:uppercase}
 .label{font-size:11px;font-weight:600;color:var(--td);margin-bottom:4px;display:block;font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase}
 
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding:16px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+body.modal-open{overflow:hidden!important;position:fixed;width:100%;height:100%}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding:16px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 .modal{background:var(--sf);border:1px solid var(--bd);border-radius:12px;width:100%;max-width:560px;padding:20px;margin:auto 0}
 
 .section-title{font-size:14px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px}
 
 .part-card{background:var(--sa);border:1px solid var(--bd);border-radius:10px;padding:14px;margin-bottom:10px}
-.part-photo{width:100%;max-height:200px;object-fit:cover;border-radius:6px;margin-bottom:10px}
+.part-photo{width:100%;max-height:120px;object-fit:cover;border-radius:6px;margin-bottom:10px;image-rendering:auto;-webkit-backface-visibility:hidden;backface-visibility:hidden}
 .part-info{margin-bottom:4px;font-size:13px}
+img{max-width:100%;height:auto;image-rendering:auto}
 
 .empty{text-align:center;padding:36px;color:var(--td);font-size:14px}
 .hidden{display:none}
@@ -98,8 +102,10 @@ body::before{content:"";position:fixed;top:50%;left:50%;transform:translate(-50%
 .tech-chip.display{cursor:default;background:#4090e020;color:#4090e0;border:none;font-size:10px;padding:2px 8px}
 .tech-manage-row{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--bd)}
 .tech-manage-name{flex:1;font-size:15px;font-weight:600}
-.identity-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:flex-start;justify-content:center;z-index:200;padding:16px;overflow-y:auto;-webkit-overflow-scrolling:touch}
-.identity-box{background:var(--sf);border:2px solid var(--ac);border-radius:16px;width:100%;max-width:400px;padding:28px;text-align:center;margin:auto 0}
+.identity-modal{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.identity-box{background:var(--sf);border:2px solid var(--ac);border-radius:16px;width:100%;max-width:380px;padding:28px;text-align:center;margin:auto 0}
+.login-error{background:var(--rd)15;border:1px solid var(--rd)40;color:var(--rd);padding:10px;border-radius:8px;font-size:13px;margin-bottom:14px;display:none}
+.login-field{margin-bottom:14px;text-align:left}
 .identity-avatar{width:60px;height:60px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;font-family:var(--mono)}
 .identity-name-btn{width:100%;padding:14px;border:1px solid var(--bd);border-radius:8px;background:var(--sa);color:var(--tx);font-size:15px;font-weight:600;font-family:var(--sans);cursor:pointer;margin-bottom:8px;transition:all .15s;text-align:left;display:flex;align-items:center;gap:12px}
 .identity-name-btn:hover,.identity-name-btn:active{border-color:var(--ac);background:var(--ac)10}
@@ -137,12 +143,13 @@ body::before{content:"";position:fixed;top:50%;left:50%;transform:translate(-50%
 var API = "";
 var FILLERS = ["A Line","B Line","C Line","F Line","G Line","H Line","J Line","K Line","M Line","R Line"];
 var FILLER_COLORS = {"A Line":"#e05545","B Line":"#e08840","C Line":"#d4b030","F Line":"#58b050","G Line":"#38a8a0","H Line":"#4090e0","J Line":"#6870d8","K Line":"#a060c8","M Line":"#d060a0","R Line":"#e06878"};
-var TAB_NAMES = ["Dashboard","Today's Log","Parts Catalog","Shift Report","History","Technicians"];
+var TAB_NAMES = ["Dashboard","Today's Log","Parts Catalog","History","Technicians","Activity Log","Work Orders"];
 
 var state = {
   tab: 0, events: [], timers: {}, catalog: [], equipment: [], technicians: [], partTypes: [],
   shiftLabel: "", historyDate: today(), searchPart: "", selectedTechs: {}, filterType: "",
-  showOtherShifts: {},
+  showOtherShifts: {}, logShiftFilter: "", historyShiftFilter: "",
+  auditLog: [], showFullTechList: false,
   currentUser: null
 };
 
@@ -153,9 +160,18 @@ try {
 } catch(e) {}
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
-function today(){return new Date().toISOString().slice(0,10)}
+function today(){
+  var d = new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function formatDate(dateStr){
+  if(!dateStr) return "—";
+  var p = dateStr.split("-");
+  if(p.length!==3) return dateStr;
+  return p[1]+"-"+p[2]+"-"+p[0].slice(2);
+}
 function upper(s){return(s||"").toUpperCase()}
-function shortTime(ts){if(!ts)return"—";return new Date(ts).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}
+function shortTime(ts){if(!ts)return"—";var n=typeof ts==="string"?parseInt(ts):ts;if(!n||isNaN(n))return"—";return new Date(n).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}
 function timerDisp(ms){if(!ms||ms<0)return"0:00";var s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;if(h>0)return h+":"+String(m).padStart(2,"0")+":"+String(sec).padStart(2,"0");return m+":"+String(sec).padStart(2,"0")}
 function durText(n){if(!n&&n!==0)return"—";var h=Math.floor(n/60),m=Math.round(n%60);return h>0?h+"h "+m+"m":m+"m"}
 function esc(s){var d=document.createElement("div");d.textContent=s;return d.innerHTML}
@@ -184,6 +200,15 @@ function getCurrentShift() {
 function getCurrentShiftLabel() {
   var shifts = getCurrentShift();
   return shifts.map(function(s){return s+" Shift"}).join(" / ");
+}
+
+function getEventShift(startTime) {
+  if (!startTime) return "—";
+  var d = new Date(typeof startTime === "string" ? parseInt(startTime) : startTime);
+  var mins = d.getHours() * 60 + d.getMinutes();
+  if (mins >= 420 && mins < 930) return "1st";
+  if (mins >= 900 && mins < 1410) return "2nd";
+  return "3rd";
 }
 
 function getTechsForCurrentShift() {
@@ -221,9 +246,9 @@ async function loadAll() {
   ]);
   state.events = results[0].map(function(e){
     return {id:e.id,filler:e.filler,equipmentId:e.equipment_id,issue:e.issue,resolution:e.resolution,
-      startTime:e.start_time,stopTime:e.stop_time,durationMin:e.duration_min,date:e.date,timestamp:e.timestamp,
-      workOrder:e.work_order||"",timeEditReason:e.time_edit_reason||"",
-      parts:(e.parts||[]).map(function(p){return{id:p.id,name:p.name,partNumber:p.part_number,qty:p.qty,partType:p.part_type||""}}),
+      startTime:parseInt(e.start_time)||0,stopTime:parseInt(e.stop_time)||0,durationMin:parseInt(e.duration_min)||0,date:e.date,timestamp:e.timestamp,
+      workOrder:e.work_order||"",timeEditReason:e.time_edit_reason||"",startedBy:e.started_by||"",
+      parts:(e.parts||[]).map(function(p){return{id:p.id,name:p.name,partNumber:p.part_number,qty:parseInt(p.qty)||1,partType:p.part_type||""}}),
       techs:e.techs||[],
       photos:e.photos||[]};
   });
@@ -247,9 +272,10 @@ function render() {
   if (state.tab === 0) renderDashboard(main);
   else if (state.tab === 1) renderTodayLog(main);
   else if (state.tab === 2) renderCatalog(main);
-  else if (state.tab === 3) renderShiftReport(main);
-  else if (state.tab === 4) renderHistory(main);
-  else if (state.tab === 5) renderTechnicians(main);
+  else if (state.tab === 3) renderHistory(main);
+  else if (state.tab === 4) renderTechnicians(main);
+  else if (state.tab === 5) renderAuditLog(main);
+  else if (state.tab === 6) renderWorkOrders(main);
 }
 
 function renderTabs() {
@@ -300,17 +326,23 @@ function renderDashboard(el) {
       html += '<div style="font-size:11px;font-weight:800;color:var(--rd);font-family:var(--mono);letter-spacing:1px;margin-bottom:4px">● DOWN</div>';
       html += '<div class="filler-timer" data-filler="'+f+'" style="color:'+color+'">'+timerDisp(elapsed)+'</div>';
       html += '<div class="filler-since">since '+shortTime(t.startTime)+'</div>';
+      // Show who started the call
+      if (t.startedBy) {
+        html += '<div style="font-size:9px;color:var(--ac);font-family:var(--mono);margin-bottom:4px">STARTED BY: '+esc(t.startedBy)+'</div>';
+      }
       // Show who's responding as simple text
       if (timerTechs.length > 0) {
         html += '<div style="font-size:10px;color:var(--td);margin-bottom:6px;text-align:center">'+timerTechs.map(function(tc){return esc(tc.name)}).join(", ")+'</div>';
       }
       // Check if current user is already on this call
       var userOnCall = state.currentUser && timerTechs.some(function(tc){return tc.id === state.currentUser.id});
-      html += '<div style="display:flex;gap:6px;width:100%">';
+      html += '<div style="display:flex;gap:6px;width:100%;flex-wrap:wrap">';
       if (!userOnCall) {
-        html += '<button class="btn btn-primary btn-sm" style="flex:1;padding:8px 0" onclick="joinCall(\''+f+'\')">+ Join</button>';
+        html += '<button class="btn btn-primary btn-sm" style="flex:1;padding:8px 0;min-width:60px" onclick="joinCall(\''+f+'\')">+ Join</button>';
+      } else {
+        html += '<button class="btn btn-ghost btn-sm" style="flex:1;padding:8px 0;min-width:60px;color:var(--ac);border:1px solid var(--ac)30" onclick="leaveCall(\''+f+'\')">Leave</button>';
       }
-      html += '<button class="btn btn-stop" style="flex:1;padding:8px 0" onclick="stopFiller(\''+f+'\')"><span style="width:8px;height:8px;border-radius:2px;background:#fff;display:inline-block"></span> STOP</button>';
+      html += '<button class="btn btn-stop" style="flex:1;padding:8px 0;min-width:60px" onclick="stopFiller(\''+f+'\')"><span style="width:8px;height:8px;border-radius:2px;background:#fff;display:inline-block"></span> STOP</button>';
       html += '</div>';
       html += '<div class="filler-pulse"><div class="filler-pulse-bar" style="background:'+color+'"></div></div>';
     } else {
@@ -371,7 +403,8 @@ async function startFiller(f) {
   if (state.currentUser && techIds.indexOf(state.currentUser.id) < 0) {
     techIds.push(state.currentUser.id);
   }
-  var result = await api("POST","/api/timers/"+encodeURIComponent(f)+"/start", {techIds: techIds});
+  var startedBy = state.currentUser ? state.currentUser.name : null;
+  var result = await api("POST","/api/timers/"+encodeURIComponent(f)+"/start", {techIds: techIds, startedBy: startedBy});
   state.timers[f] = result;
   state.selectedTechs[f] = [];
   await loadAll();
@@ -398,7 +431,7 @@ async function stopFiller(f) {
     if (durationMs > 86400000) startTime = stopTime - 3600000; // default to 1 hour
   }
   
-  showEventModal(f, startTime, stopTime, null, result.techIds || []);
+  showEventModal(f, startTime, stopTime, null, result.techIds || [], result.startedBy || null);
 }
 
 async function joinCall(f) {
@@ -411,6 +444,14 @@ async function joinCall(f) {
   if (joinIds.length === 0) return;
   await api("POST","/api/timers/"+encodeURIComponent(f)+"/join", {techIds: joinIds});
   state.selectedTechs["join_"+f] = [];
+  await loadAll();
+  render();
+}
+
+async function leaveCall(f) {
+  if (!state.currentUser) return;
+  if (!confirm("Leave this call? The timer will keep running for other techs.")) return;
+  await api("POST","/api/timers/"+encodeURIComponent(f)+"/leave", {techId: state.currentUser.id});
   await loadAll();
   render();
 }
@@ -434,6 +475,7 @@ function eventCardHTML(e, showDel) {
   html += '</div>';
   if (e.equipmentId) html += '<div class="event-field"><span class="event-field-label">Equipment: </span><strong style="color:var(--ac)">'+esc(e.equipmentId)+'</strong></div>';
   if (e.workOrder) html += '<div class="event-field"><span class="event-field-label">Work Order: </span><span style="font-family:var(--mono)">'+esc(e.workOrder)+'</span></div>';
+  if (e.startedBy) html += '<div class="event-field"><span class="event-field-label">Started By: </span><span style="color:var(--ac)">'+esc(e.startedBy)+'</span></div>';
   if (e.issue) html += '<div class="event-field"><span class="event-field-label">Issue: </span>'+esc(e.issue)+'</div>';
   if (e.resolution) html += '<div class="event-field"><span class="event-field-label">Fix: </span>'+esc(e.resolution)+'</div>';
   if (partsText) html += '<div class="event-field"><span class="event-field-label">Parts: </span><span style="font-size:12px">'+partsText+'</span></div>';
@@ -443,7 +485,7 @@ function eventCardHTML(e, showDel) {
   if ((e.photos||[]).length > 0) {
     html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;margin-bottom:4px">';
     (e.photos||[]).forEach(function(ph) {
-      html += '<img src="/photos/'+esc(ph.filename)+'" style="width:80px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--bd);cursor:pointer" onclick="window.open(\'/photos/'+esc(ph.filename)+'\',\'_blank\')">';
+      html += '<img loading="lazy" src="/photos/'+esc(ph.filename)+'" style="width:80px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--bd);cursor:pointer" onclick="window.open(\'/photos/'+esc(ph.filename)+'\',\'_blank\')">';
     });
     html += '</div>';
   }
@@ -458,14 +500,62 @@ function eventCardHTML(e, showDel) {
 // TODAY'S LOG
 // ═══════════════════════════════════════
 function renderTodayLog(el) {
-  var evts = state.events.filter(function(e){return e.date===today()});
+  var allEvts = state.events.filter(function(e){return e.date===today()});
+  
+  // Apply shift filter
+  var evts = allEvts;
+  if (state.logShiftFilter) {
+    evts = allEvts.filter(function(e) { return getEventShift(e.startTime) === state.logShiftFilter; });
+  }
+  
   var total = evts.reduce(function(s,e){return s+(e.durationMin||0)},0);
   var html = '<div class="card">';
-  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">';
-  html += '<div style="font-size:15px;font-weight:700">Today\'s Log — '+today()+'</div>';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">';
+  html += '<div style="font-size:15px;font-weight:700">Today\'s Log — '+formatDate(today())+'</div>';
   html += '<div style="font-size:12px;color:var(--td)">'+evts.length+' events • '+durText(total)+' total</div></div>';
-  if (evts.length === 0) { html += '<div class="empty">No events logged today.</div>'; }
-  else { evts.forEach(function(e){html += eventCardHTML(e, true)}); }
+  
+  // Shift Report controls - print/download
+  html += '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">';
+  html += '<input class="input" id="shift-label-inline" placeholder="SHIFT LABEL (e.g. 2ND SHIFT)" style="flex:1;min-width:140px;padding:8px 10px;font-size:12px" value="'+esc(state.shiftLabel)+'" oninput="state.shiftLabel=this.value">';
+  html += '<button class="btn btn-primary btn-sm" style="width:auto;padding:8px 14px;white-space:nowrap" '+(allEvts.length===0?'disabled style="opacity:.5;width:auto;padding:8px 14px"':'')+' onclick="printReport()">🖨 Print</button>';
+  html += '<button class="btn btn-ghost btn-sm" style="width:auto;padding:8px 14px;white-space:nowrap;color:var(--ac);border:1px solid var(--ac)30" '+(allEvts.length===0?'disabled style="opacity:.5;width:auto;padding:8px 14px"':'')+' onclick="downloadShiftNotes()">⬇ Save PDF</button>';
+  html += '</div>';
+  
+  // Shift filter
+  html += '<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">';
+  html += '<button class="btn btn-sm '+(state.logShiftFilter===""?"btn-primary":"btn-ghost")+'" style="width:auto;padding:6px 12px" onclick="state.logShiftFilter=\'\';render()">All Shifts</button>';
+  ["1st","2nd","3rd"].forEach(function(s) {
+    var shiftColors = {"1st":"#4090e0","2nd":"#e89832","3rd":"#a060c8"};
+    var active = state.logShiftFilter === s;
+    html += '<button class="btn btn-sm '+(active?"btn-primary":"btn-ghost")+'" style="width:auto;padding:6px 12px;'+(active?"":"color:"+shiftColors[s])+'" onclick="state.logShiftFilter=\''+s+'\';render()">'+s+' Shift</button>';
+  });
+  html += '</div>';
+  
+  if (evts.length === 0) { 
+    html += '<div class="empty">'+(allEvts.length > 0 ? 'No events for this shift filter.' : 'No events logged today.')+'</div>'; 
+  } else {
+    // Group by line
+    var lineOrder = FILLERS.slice();
+    var grouped = {};
+    evts.forEach(function(e) {
+      if (!grouped[e.filler]) grouped[e.filler] = [];
+      grouped[e.filler].push(e);
+    });
+    lineOrder.forEach(function(line) {
+      if (!grouped[line] || grouped[line].length === 0) return;
+      var lineEvts = grouped[line];
+      var lineTotal = lineEvts.reduce(function(s,e){return s+(e.durationMin||0)},0);
+      var fc = FILLER_COLORS[line] || "#e89832";
+      html += '<div style="margin-bottom:16px">';
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid '+fc+'30">';
+      html += '<span style="width:8px;height:8px;border-radius:50%;background:'+fc+'"></span>';
+      html += '<span style="font-size:14px;font-weight:700;color:'+fc+'">'+esc(line)+'</span>';
+      html += '<span style="font-size:11px;color:var(--td);margin-left:auto">'+lineEvts.length+' call'+(lineEvts.length>1?"s":"")+' • '+durText(lineTotal)+'</span>';
+      html += '</div>';
+      lineEvts.forEach(function(e){html += eventCardHTML(e, true)});
+      html += '</div>';
+    });
+  }
   html += '</div>';
   el.innerHTML = html;
 }
@@ -517,7 +607,7 @@ function renderCatalog(el) {
     parts.sort(function(a,b){return(b.usageCount||0)-(a.usageCount||0)});
     parts.forEach(function(p) {
       html += '<div class="part-card">';
-      if (p.photoFilename) html += '<img class="part-photo" src="/photos/'+esc(p.photoFilename)+'" alt="'+esc(p.name)+'">';
+      if (p.photoFilename) html += '<img loading="lazy" class="part-photo" src="/photos/'+esc(p.photoFilename)+'" alt="'+esc(p.name)+'" style="width:100%;max-height:120px;object-fit:cover;border-radius:6px;margin-bottom:10px">';
       html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">';
       html += '<div style="font-size:15px;font-weight:700">'+esc(p.name)+'</div>';
       if (p.partType) html += '<span class="tag" style="background:var(--ac)18;color:var(--ac)">'+esc(p.partType)+'</span>';
@@ -545,48 +635,62 @@ function renderCatalog(el) {
 // ═══════════════════════════════════════
 // SHIFT REPORT
 // ═══════════════════════════════════════
-function renderShiftReport(el) {
-  var evts = state.events.filter(function(e){return e.date===today()});
-  var total = evts.reduce(function(s,e){return s+(e.durationMin||0)},0);
-  var html = '<div class="card">';
-  html += '<div class="section-title">Generate Shift Report</div>';
-  html += '<p style="color:var(--td);font-size:13px;margin-bottom:16px">Generates a printable shift notes report. Use your browser print dialog to save as PDF.</p>';
-  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">';
-  html += '<div><label class="label">Date</label><input class="input" type="date" value="'+today()+'" disabled></div>';
-  html += '<div><label class="label">Shift Label</label><input class="input" id="shift-label" placeholder="e.g. 2nd Shift" value="'+esc(state.shiftLabel)+'" oninput="state.shiftLabel=this.value"></div>';
-  html += '</div>';
-  html += '<div style="background:var(--sa);border-radius:8px;padding:14px;margin-bottom:16px">';
-  html += '<div style="font-size:12px;font-weight:700;margin-bottom:8px">Preview — '+evts.length+' events, '+durText(total)+' downtime</div>';
-  if (evts.length===0) html += '<div style="color:var(--tm);font-size:12px">No events yet.</div>';
-  evts.forEach(function(e,i){
-    var fc=FILLER_COLORS[e.filler]||"#e89832";
-    html+='<div style="font-size:12px;padding:5px 0;'+(i>0?'border-top:1px solid var(--bd);':'')+'">';
-    html+='<span class="tag" style="background:'+fc+'18;color:'+fc+'">'+esc(e.filler)+'</span> ';
-    html+='<span style="font-family:var(--mono);font-size:11px;color:var(--td)">'+durText(e.durationMin)+'</span> ';
-    html+=esc((e.equipmentId||"")+(e.issue?" — "+e.issue:""));
-    html+='</div>';
-  });
-  html += '</div>';
-  html += '<button class="btn btn-primary" '+(evts.length===0?'disabled style="opacity:.5"':'')+' onclick="printReport()">Print / Save as PDF</button>';
-  html += '</div>';
-  el.innerHTML = html;
-}
+// Shift Report tab removed - print/download buttons moved to Today's Log
 
 // ═══════════════════════════════════════
 // HISTORY
 // ═══════════════════════════════════════
 function renderHistory(el) {
-  var evts = state.events.filter(function(e){return e.date===state.historyDate});
+  var allEvts = state.events.filter(function(e){return e.date===state.historyDate});
+  
+  // Apply shift filter
+  var evts = allEvts;
+  if (state.historyShiftFilter) {
+    evts = allEvts.filter(function(e) { return getEventShift(e.startTime) === state.historyShiftFilter; });
+  }
+  
   var total = evts.reduce(function(s,e){return s+(e.durationMin||0)},0);
   var html = '<div class="card">';
-  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:10px">';
   html += '<div style="font-size:15px;font-weight:700">Event History</div>';
   html += '<div style="display:flex;gap:8px;align-items:center"><label class="label" style="margin:0">Date:</label>';
   html += '<input class="input" style="width:170px" type="date" value="'+state.historyDate+'" onchange="state.historyDate=this.value;render()"></div></div>';
-  if (evts.length===0) { html += '<div class="empty">No events for '+state.historyDate+'.</div>'; }
-  else {
+  
+  // Shift filter
+  html += '<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">';
+  html += '<button class="btn btn-sm '+(state.historyShiftFilter===""?"btn-primary":"btn-ghost")+'" style="width:auto;padding:6px 12px" onclick="state.historyShiftFilter=\'\';render()">All Shifts</button>';
+  ["1st","2nd","3rd"].forEach(function(s) {
+    var shiftColors = {"1st":"#4090e0","2nd":"#e89832","3rd":"#a060c8"};
+    var active = state.historyShiftFilter === s;
+    html += '<button class="btn btn-sm '+(active?"btn-primary":"btn-ghost")+'" style="width:auto;padding:6px 12px;'+(active?"":"color:"+shiftColors[s])+'" onclick="state.historyShiftFilter=\''+s+'\';render()">'+s+' Shift</button>';
+  });
+  html += '</div>';
+  
+  if (evts.length===0) { 
+    html += '<div class="empty">'+(allEvts.length > 0 ? 'No events for this shift filter.' : 'No events for '+formatDate(state.historyDate)+'.')+'</div>'; 
+  } else {
     html += '<div style="margin-bottom:12px;font-size:12px;color:var(--td)">'+evts.length+' events • '+durText(total)+' total</div>';
-    evts.forEach(function(e){html += eventCardHTML(e, true)});
+    // Group by line
+    var lineOrder = FILLERS.slice();
+    var grouped = {};
+    evts.forEach(function(e) {
+      if (!grouped[e.filler]) grouped[e.filler] = [];
+      grouped[e.filler].push(e);
+    });
+    lineOrder.forEach(function(line) {
+      if (!grouped[line] || grouped[line].length === 0) return;
+      var lineEvts = grouped[line];
+      var lineTotal = lineEvts.reduce(function(s,e){return s+(e.durationMin||0)},0);
+      var fc = FILLER_COLORS[line] || "#e89832";
+      html += '<div style="margin-bottom:16px">';
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid '+fc+'30">';
+      html += '<span style="width:8px;height:8px;border-radius:50%;background:'+fc+'"></span>';
+      html += '<span style="font-size:14px;font-weight:700;color:'+fc+'">'+esc(line)+'</span>';
+      html += '<span style="font-size:11px;color:var(--td);margin-left:auto">'+lineEvts.length+' call'+(lineEvts.length>1?"s":"")+' • '+durText(lineTotal)+'</span>';
+      html += '</div>';
+      lineEvts.forEach(function(e){html += eventCardHTML(e, true)});
+      html += '</div>';
+    });
     html += '<button class="btn btn-primary" style="margin-top:14px" onclick="printReportForDate(\''+state.historyDate+'\')">Print This Day\'s Report</button>';
   }
   html += '</div>';
@@ -599,7 +703,9 @@ function renderHistory(el) {
 var modalParts = [];
 var modalTechIds = [];
 
-function showEventModal(filler, startTime, stopTime, existingEvent, preselectedTechIds) {
+var modalStartedBy = null;
+
+function showEventModal(filler, startTime, stopTime, existingEvent, preselectedTechIds, startedBy) {
   var isEdit = !!existingEvent;
   var durMs = stopTime - startTime;
   var durMins = Math.round(durMs / 60000);
@@ -608,11 +714,14 @@ function showEventModal(filler, startTime, stopTime, existingEvent, preselectedT
   if (isEdit) {
     modalParts = (existingEvent.parts||[]).map(function(p){return{id:p.id||uid(),name:p.name,partNumber:p.partNumber||"",qty:p.qty||1,partType:p.partType||""}});
     modalTechIds = (existingEvent.techs||[]).map(function(t){return t.id});
+    modalStartedBy = existingEvent.startedBy || null;
   } else {
     modalParts = [];
     modalTechIds = preselectedTechIds || [];
+    modalStartedBy = startedBy || (state.currentUser ? state.currentUser.name : null);
   }
 
+  document.body.style.overflow = "hidden"; document.body.classList.add("modal-open");
   var html = '<div class="modal-overlay" onclick="if(event.target===this)closeModal()">';
   html += '<div class="modal">';
   html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">';
@@ -641,6 +750,10 @@ function showEventModal(filler, startTime, stopTime, existingEvent, preselectedT
     html += '<div style="margin-bottom:14px;background:var(--rd)10;border:1px solid var(--rd)30;border-radius:8px;padding:12px">';
     html += '<label class="label" style="color:var(--rd)">Reason for Time Change (required if times modified)</label>';
     html += '<input class="input" id="modal-time-reason" placeholder="e.g. Timer started late, actual start was earlier" value="'+esc(existingEvent.timeEditReason||"")+'">';
+    html += '</div>';
+    // Date change
+    html += '<div style="margin-bottom:14px"><label class="label">Event Date</label>';
+    html += '<input class="input" type="date" id="modal-edit-date" value="'+esc(existingEvent.date||"")+'">';
     html += '</div>';
   }
 
@@ -682,12 +795,12 @@ function showEventModal(filler, startTime, stopTime, existingEvent, preselectedT
   html += '<button class="btn btn-ghost btn-sm" style="width:auto;margin-top:6px" onclick="addModalPart()">+ Add Part</button></div>';
 
   html += '<div style="margin-bottom:16px"><label class="label">Photos</label>';
-  html += '<input type="file" accept="image/*" capture="environment" multiple id="modal-photos" style="color:var(--tx);font-size:13px">';
+  html += '<input type="file" accept="image/*" multiple id="modal-photos" style="color:var(--tx);font-size:13px">';
   html += '<div style="font-size:11px;color:var(--tm);margin-top:4px">Take a photo or select images (up to 5)</div>';
   if (isEdit && (existingEvent.photos||[]).length > 0) {
     html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">';
     (existingEvent.photos||[]).forEach(function(ph) {
-      html += '<div style="position:relative"><img src="/photos/'+esc(ph.filename)+'" style="width:70px;height:55px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">';
+      html += '<div style="position:relative"><img loading="lazy" src="/photos/'+esc(ph.filename)+'" style="width:70px;height:55px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">';
       html += '<button onclick="deleteEventPhoto(\''+ph.id+'\')" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--rd);color:#fff;border:none;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button></div>';
     });
     html += '</div>';
@@ -737,13 +850,16 @@ function renderModalParts() {
   var html = "";
   modalParts.forEach(function(p, i) {
     html += '<div style="background:var(--sa);border:1px solid var(--bd);border-radius:8px;padding:10px;margin-bottom:8px">';
-    html += '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">';
-    html += '<input class="input" style="flex:2" placeholder="Part name" value="'+esc(p.name)+'" oninput="modalParts['+i+'].name=this.value">';
-    html += '<input class="input" style="flex:1" placeholder="Part #" value="'+esc(p.partNumber)+'" oninput="modalParts['+i+'].partNumber=this.value">';
+    html += '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;position:relative">';
+    html += '<div style="flex:2;position:relative">';
+    html += '<input class="input" style="width:100%" placeholder="Part name" value="'+esc(p.name)+'" id="modal-part-name-'+i+'" oninput="modalParts['+i+'].name=this.value;showPartSuggestions('+i+',this.value)" onfocus="showPartSuggestions('+i+',this.value)" autocomplete="off">';
+    html += '<div id="part-suggestions-'+i+'" style="position:absolute;top:100%;left:0;right:0;z-index:20;background:var(--sf);border:1px solid var(--bd);border-radius:6px;max-height:150px;overflow-y:auto;display:none"></div>';
+    html += '</div>';
+    html += '<input class="input" style="flex:1" placeholder="Part #" value="'+esc(p.partNumber)+'" id="modal-part-num-'+i+'" oninput="modalParts['+i+'].partNumber=this.value">';
     html += '<input class="input" style="flex:.4;text-align:center" type="number" min="1" value="'+p.qty+'" oninput="modalParts['+i+'].qty=parseInt(this.value)||1">';
     html += '<button class="btn btn-delete btn-sm" style="width:auto;flex:none" onclick="modalParts.splice('+i+',1);renderModalParts()">✕</button>';
     html += '</div>';
-    html += '<select class="input" style="font-size:12px;padding:6px 10px" onchange="modalParts['+i+'].partType=this.value">';
+    html += '<select class="input" style="font-size:12px;padding:6px 10px" id="modal-part-type-'+i+'" onchange="modalParts['+i+'].partType=this.value">';
     html += '<option value="">— Part Type —</option>';
     state.partTypes.forEach(function(pt) {
       html += '<option value="'+esc(pt.name)+'"'+((p.partType||"")===pt.name?' selected':'')+'>'+esc(pt.name)+'</option>';
@@ -753,6 +869,47 @@ function renderModalParts() {
   });
   el.innerHTML = html;
 }
+
+function showPartSuggestions(idx, val) {
+  var container = document.getElementById("part-suggestions-"+idx);
+  if (!container) return;
+  if (!val || val.length < 1) { container.style.display = "none"; return; }
+  var q = val.toLowerCase();
+  var matches = state.catalog.filter(function(c) {
+    return c.name.toLowerCase().indexOf(q) >= 0 || (c.partNumber||"").toLowerCase().indexOf(q) >= 0;
+  }).slice(0, 8);
+  if (matches.length === 0) { container.style.display = "none"; return; }
+  var html = "";
+  matches.forEach(function(c) {
+    var typeTag = c.partType ? ' <span style="color:var(--ac);font-size:10px">['+esc(c.partType)+']</span>' : "";
+    html += '<div style="padding:8px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--bd)" onmousedown="selectPartSuggestion('+idx+',\''+esc(c.name).replace(/'/g,"\\'")+'\',\''+esc(c.partNumber||"").replace(/'/g,"\\'")+'\',\''+esc(c.partType||"").replace(/'/g,"\\'")+'\')"><strong>'+esc(c.name)+'</strong>'+(c.partNumber?' <span style="color:var(--td);font-family:var(--mono);font-size:11px">'+esc(c.partNumber)+'</span>':'')+typeTag+'</div>';
+  });
+  container.innerHTML = html;
+  container.style.display = "block";
+}
+
+function selectPartSuggestion(idx, name, partNumber, partType) {
+  modalParts[idx].name = name;
+  modalParts[idx].partNumber = partNumber;
+  modalParts[idx].partType = partType;
+  // Update the input fields directly without full re-render
+  var nameEl = document.getElementById("modal-part-name-"+idx);
+  var numEl = document.getElementById("modal-part-num-"+idx);
+  var typeEl = document.getElementById("modal-part-type-"+idx);
+  var sugEl = document.getElementById("part-suggestions-"+idx);
+  if (nameEl) nameEl.value = name;
+  if (numEl) numEl.value = partNumber;
+  if (typeEl) typeEl.value = partType;
+  if (sugEl) sugEl.style.display = "none";
+}
+
+// Hide suggestions when clicking elsewhere
+document.addEventListener("click", function(e) {
+  if (!e.target.id || e.target.id.indexOf("modal-part-name-") < 0) {
+    var allSugs = document.querySelectorAll("[id^='part-suggestions-']");
+    for (var i = 0; i < allSugs.length; i++) { allSugs[i].style.display = "none"; }
+  }
+});
 
 function addModalPart() {
   modalParts.push({id:uid(),name:"",partNumber:"",qty:1,partType:""});
@@ -817,6 +974,7 @@ async function saveNewEvent(filler, startTime, stopTime, durMins) {
       startTime: startTime, stopTime: stopTime, durationMin: durMins,
       parts: modalParts.filter(function(p){return p.name.trim()}).map(function(p){return{id:p.id,name:upper(p.name),partNumber:upper(p.partNumber),qty:p.qty,partType:p.partType}}),
       techIds: modalTechIds.slice(),
+      startedBy: modalStartedBy,
       date: today(), timestamp: new Date().toISOString()
     };
     await api("POST", "/api/events", ev);
@@ -835,10 +993,30 @@ async function saveNewEvent(filler, startTime, stopTime, durMins) {
 async function saveEditedEvent(id, filler, startTime, stopTime, durMins, date, timestamp) {
   if (isSaving) return;
 
-  var times = getModalTimes(startTime, stopTime, true);
-  var timesChanged = (times.startTime !== startTime || times.stopTime !== stopTime);
+  // Build original HH:MM strings the same way we set the input values
+  var origStartDate = new Date(startTime);
+  var origStopDate = new Date(stopTime);
+  var origStartHHMM = String(origStartDate.getHours()).padStart(2,"0") + ":" + String(origStartDate.getMinutes()).padStart(2,"0");
+  var origStopHHMM = String(origStopDate.getHours()).padStart(2,"0") + ":" + String(origStopDate.getMinutes()).padStart(2,"0");
+  
+  // Read current input values
+  var startInput = document.getElementById("modal-start-time");
+  var stopInput = document.getElementById("modal-stop-time");
+  var currentStartHHMM = startInput ? startInput.value : origStartHHMM;
+  var currentStopHHMM = stopInput ? stopInput.value : origStopHHMM;
+  
+  // Only consider times changed if the HH:MM strings actually differ
+  var timesChanged = (currentStartHHMM !== origStartHHMM || currentStopHHMM !== origStopHHMM);
+  
+  var times;
+  if (timesChanged) {
+    times = getModalTimes(startTime, stopTime, true);
+  } else {
+    // Keep original timestamps exactly as they were
+    times = { startTime: startTime, stopTime: stopTime, durationMin: durMins };
+  }
+  
   var reason = "";
-
   if (timesChanged) {
     var reasonInput = document.getElementById("modal-time-reason");
     reason = reasonInput ? reasonInput.value.trim() : "";
@@ -854,6 +1032,10 @@ async function saveEditedEvent(id, filler, startTime, stopTime, durMins, date, t
   if (saveBtn) { saveBtn.textContent = "Saving..."; saveBtn.style.opacity = "0.6"; }
 
   try {
+    // Check if date was changed
+    var dateInput = document.getElementById("modal-edit-date");
+    var newDate = dateInput ? dateInput.value : date;
+
     var ev = {
       id: id, filler: filler,
       equipmentId: upper(document.getElementById("modal-eq").value.trim()),
@@ -864,7 +1046,8 @@ async function saveEditedEvent(id, filler, startTime, stopTime, durMins, date, t
       parts: modalParts.filter(function(p){return p.name.trim()}).map(function(p){return{id:p.id,name:upper(p.name),partNumber:upper(p.partNumber),qty:p.qty,partType:p.partType}}),
       techIds: modalTechIds.slice(),
       timeEditReason: timesChanged ? upper(reason) : null,
-      date: date, timestamp: timestamp
+      date: newDate, timestamp: timestamp,
+      performedBy: state.currentUser ? state.currentUser.name : null
     };
     await api("PUT", "/api/events/"+id, ev);
     await uploadEventPhotos(id);
@@ -909,7 +1092,7 @@ async function uploadEventPhotos(eventId) {
   if (!fileInput || !fileInput.files || fileInput.files.length === 0) return;
   var formData = new FormData();
   for (var i = 0; i < fileInput.files.length; i++) {
-    var compressed = await compressImage(fileInput.files[i], 1200, 0.7);
+    var compressed = await compressImage(fileInput.files[i], 800, 0.6);
     formData.append("photos", compressed);
   }
   await fetch(API+"/api/events/"+eventId+"/photos", {method:"POST", body:formData});
@@ -926,18 +1109,21 @@ async function deleteEventPhoto(photoId) {
 function editEvent(id) {
   var e = state.events.find(function(ev){return ev.id===id});
   if (!e) return;
-  showEventModal(e.filler, e.startTime, e.stopTime, e, null);
+  showEventModal(e.filler, e.startTime, e.stopTime, e, null, null);
 }
 
 async function deleteEvent(id) {
   if (!confirm("Delete this event?")) return;
-  await api("DELETE", "/api/events/"+id);
+  var performer = state.currentUser ? state.currentUser.name : null;
+  await api("DELETE", "/api/events/"+id, {performedBy: performer});
   await loadAll();
   render();
 }
 
 function closeModal() {
   document.getElementById("modal-root").innerHTML = "";
+  document.body.classList.remove("modal-open");
+  document.body.style.overflow = ""; document.body.classList.remove("modal-open");
 }
 
 // ═══════════════════════════════════════
@@ -946,12 +1132,13 @@ function closeModal() {
 function showAddPartModal(existingPart) {
   var isEdit = !!existingPart;
   var p = existingPart || {};
+  document.body.style.overflow = "hidden"; document.body.classList.add("modal-open");
   var html = '<div class="modal-overlay" onclick="if(event.target===this)closeModal()">';
   html += '<div class="modal">';
   html += '<div style="font-size:17px;font-weight:700;margin-bottom:16px">'+(isEdit?'Edit Part':'Add New Part')+'</div>';
 
   if (isEdit && p.photoFilename) {
-    html += '<img src="/photos/'+esc(p.photoFilename)+'" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;margin-bottom:14px">';
+    html += '<img loading="lazy" src="/photos/'+esc(p.photoFilename)+'" style="width:100%;max-height:150px;object-fit:cover;border-radius:8px;margin-bottom:14px">';
   }
 
   html += '<div style="margin-bottom:12px"><label class="label">Part Name *</label><input class="input" id="part-name" value="'+esc(p.name||"")+'"></div>';
@@ -973,7 +1160,7 @@ function showAddPartModal(existingPart) {
   html += '<div style="margin-bottom:12px"><label class="label">Supplier / Vendor</label><input class="input" id="part-supplier" value="'+esc(p.supplier||"")+'"></div>';
   html += '<div style="margin-bottom:12px"><label class="label">Location (bin / shelf #)</label><input class="input" id="part-location" value="'+esc(p.location||"")+'"></div>';
   html += '<div style="margin-bottom:16px"><label class="label">Photo</label>';
-  html += '<input type="file" accept="image/*" capture="environment" id="part-photo" style="color:var(--tx);font-size:13px;margin-top:4px">';
+  html += '<input type="file" accept="image/*" id="part-photo" style="color:var(--tx);font-size:13px;margin-top:4px">';
   html += '</div>';
 
   html += '<div style="display:flex;gap:10px">';
@@ -1029,7 +1216,7 @@ async function saveNewPart() {
     });
     var fileInput = document.getElementById("part-photo");
     if (fileInput && fileInput.files.length > 0) {
-      var compressed = await compressImage(fileInput.files[0], 1200, 0.7);
+      var compressed = await compressImage(fileInput.files[0], 800, 0.6);
       var formData = new FormData();
       formData.append("photo", compressed);
       await fetch(API+"/api/catalog/"+id+"/photo", {method:"POST", body:formData});
@@ -1063,7 +1250,7 @@ async function saveEditedPart(id) {
     });
     var fileInput = document.getElementById("part-photo");
     if (fileInput && fileInput.files.length > 0) {
-      var compressed = await compressImage(fileInput.files[0], 1200, 0.7);
+      var compressed = await compressImage(fileInput.files[0], 800, 0.6);
       var formData = new FormData();
       formData.append("photo", compressed);
       await fetch(API+"/api/catalog/"+id+"/photo", {method:"POST", body:formData});
@@ -1092,64 +1279,110 @@ async function deleteCatalogPart(id) {
 var SHIFTS = ["1st","2nd","3rd"];
 
 function renderTechnicians(el) {
+  var shiftColors = {"1st":"#4090e0","2nd":"#e89832","3rd":"#a060c8"};
+  
+  // Build tech stats from today's events
+  var todayEvts = state.events.filter(function(e){return e.date===today()});
+  var techStats = {};
+  state.technicians.forEach(function(tc) { techStats[tc.id] = {calls:0, totalMin:0}; });
+  todayEvts.forEach(function(e) {
+    (e.techs||[]).forEach(function(t) {
+      if (techStats[t.id]) {
+        techStats[t.id].calls++;
+        techStats[t.id].totalMin += (e.durationMin||0);
+      }
+    });
+  });
+  
+  // Build active tech map
+  var activeTechIds = {};
+  Object.keys(state.timers).forEach(function(f) {
+    var t = state.timers[f];
+    if (t && t.running && t.techs) {
+      t.techs.forEach(function(tc) { activeTechIds[tc.id] = f; });
+    }
+  });
+  
+  var activeTechs = state.technicians.filter(function(tc) { return !!activeTechIds[tc.id]; });
+  var techsWithStats = state.technicians.filter(function(tc) { var s = techStats[tc.id]; return s && s.calls > 0 && !activeTechIds[tc.id]; });
+  
   var html = '<div class="card">';
-  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">';
-  html += '<div style="font-size:15px;font-weight:700">Manage Technicians</div>';
-  html += '<div style="font-size:12px;color:var(--td)">'+state.technicians.length+' techs</div></div>';
-  html += '<p style="color:var(--td);font-size:13px;margin-bottom:16px">Add or remove technicians. Assign each to a shift so they\'re grouped on the dashboard.</p>';
-
-  // Add new tech with shift selector
-  html += '<div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap">';
-  html += '<input class="input" style="flex:2;min-width:140px" id="new-tech-name" placeholder="Technician name..." onkeydown="if(event.key===\'Enter\')addTechnician()">';
-  html += '<select class="input" style="width:auto;min-width:90px" id="new-tech-shift">';
-  SHIFTS.forEach(function(s) { html += '<option value="'+s+'">'+s+' Shift</option>'; });
-  html += '</select>';
-  html += '<button class="btn btn-primary" style="width:auto;padding:10px 16px;white-space:nowrap" onclick="addTechnician()">+ Add</button>';
-  html += '</div>';
-
-  if (state.technicians.length === 0) {
-    html += '<div class="empty">No technicians added yet. Type a name above and tap Add.</div>';
+  html += '<div style="font-size:15px;font-weight:700;margin-bottom:14px">Technicians</div>';
+  
+  // Active techs section
+  if (activeTechs.length > 0) {
+    html += '<div style="margin-bottom:16px">';
+    html += '<div style="font-size:12px;font-weight:700;color:var(--rd);margin-bottom:8px;display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:var(--rd);animation:pulse 1.5s infinite"></span>ACTIVE ON CALLS ('+activeTechs.length+')</div>';
+    activeTechs.forEach(function(tc) {
+      var line = activeTechIds[tc.id];
+      var fc = FILLER_COLORS[line] || "#e89832";
+      var sc = shiftColors[tc.shift] || "var(--td)";
+      var stats = techStats[tc.id] || {calls:0,totalMin:0};
+      html += '<div style="background:var(--rd)08;border-left:3px solid var(--rd);padding:10px 12px;border-radius:0 8px 8px 0;margin-bottom:6px;display:flex;align-items:center;gap:10px">';
+      html += '<div style="width:34px;height:34px;border-radius:50%;background:var(--rd)20;color:var(--rd);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;font-family:var(--mono)">'+esc(tc.name.charAt(0))+'</div>';
+      html += '<div style="flex:1;min-width:0">';
+      html += '<div style="font-size:14px;font-weight:700">'+esc(tc.name)+' <span class="tag" style="background:'+sc+'18;color:'+sc+'">'+(tc.shift||"1st")+'</span></div>';
+      html += '<div style="font-size:11px;color:var(--rd);font-weight:700;font-family:var(--mono)">● '+esc(line)+'</div>';
+      if (stats.calls > 0) html += '<div style="font-size:10px;color:var(--td)">Today: '+stats.calls+' call'+(stats.calls>1?"s":"")+' • '+durText(stats.totalMin)+'</div>';
+      html += '</div></div>';
+    });
+    html += '</div>';
   } else {
-    // Group by shift
+    html += '<div style="text-align:center;padding:16px;color:var(--td);font-size:13px;margin-bottom:16px;background:var(--sa);border-radius:8px">No techs currently on active calls</div>';
+  }
+  
+  // Today's stats - techs who worked today but aren't active now
+  if (techsWithStats.length > 0) {
+    html += '<div style="margin-bottom:16px">';
+    html += '<div style="font-size:12px;font-weight:700;color:var(--ac);margin-bottom:8px">TODAY\'S STATS</div>';
+    techsWithStats.sort(function(a,b) { return (techStats[b.id]||{calls:0}).calls - (techStats[a.id]||{calls:0}).calls; });
+    techsWithStats.forEach(function(tc) {
+      var stats = techStats[tc.id];
+      var sc = shiftColors[tc.shift] || "var(--td)";
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)">';
+      html += '<div style="width:28px;height:28px;border-radius:50%;background:'+sc+'20;color:'+sc+';display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;font-family:var(--mono)">'+esc(tc.name.charAt(0))+'</div>';
+      html += '<div style="flex:1;font-size:13px;font-weight:600">'+esc(tc.name)+'</div>';
+      html += '<div style="text-align:right;font-size:11px;color:var(--td)">'+stats.calls+' call'+(stats.calls>1?"s":"")+' • '+durText(stats.totalMin)+'</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+  
+  // Expandable full list
+  html += '<div style="border-top:1px solid var(--bd);padding-top:14px">';
+  html += '<button class="btn btn-ghost" style="width:100%;padding:10px;font-size:13px" onclick="state.showFullTechList=!state.showFullTechList;render()">';
+  html += state.showFullTechList ? '▾ Hide Full Tech List' : '▸ Manage Technicians ('+state.technicians.length+')';
+  html += '</button>';
+  
+  if (state.showFullTechList) {
+    html += '<div style="margin-top:14px">';
+    // Add new tech
+    html += '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">';
+    html += '<input class="input" style="flex:2;min-width:130px" id="new-tech-name" placeholder="Name..." onkeydown="if(event.key===\'Enter\')addTechnician()">';
+    html += '<select class="input" style="width:auto;min-width:80px" id="new-tech-shift">';
+    SHIFTS.forEach(function(s) { html += '<option value="'+s+'">'+s+'</option>'; });
+    html += '</select>';
+    html += '<button class="btn btn-primary" style="width:auto;padding:8px 14px;white-space:nowrap" onclick="addTechnician()">+ Add</button>';
+    html += '</div>';
+    
     SHIFTS.forEach(function(shift) {
       var techs = state.technicians.filter(function(t) { return (t.shift || "1st") === shift; });
       if (techs.length === 0) return;
-      var shiftColors = {"1st":"#4090e0","2nd":"#e89832","3rd":"#a060c8"};
       var sc = shiftColors[shift] || "var(--td)";
-      html += '<div style="margin-bottom:16px">';
-      html += '<div style="font-size:13px;font-weight:700;color:'+sc+';margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid '+sc+'30;display:flex;align-items:center;gap:8px">';
-      html += '<span style="width:8px;height:8px;border-radius:50%;background:'+sc+';display:inline-block"></span>';
-      html += shift+' Shift <span style="font-weight:400;color:var(--td);font-size:11px">('+techs.length+')</span></div>';
+      html += '<div style="font-size:11px;font-weight:700;color:'+sc+';margin-bottom:6px;margin-top:10px">'+shift+' SHIFT ('+techs.length+')</div>';
       techs.forEach(function(tc) {
-        html += '<div class="tech-manage-row">';
-        html += '<div style="width:36px;height:36px;border-radius:50%;background:'+sc+'20;color:'+sc+';display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;font-family:var(--mono)">'+esc(tc.name.charAt(0).toUpperCase())+'</div>';
-        html += '<div class="tech-manage-name">'+esc(tc.name)+'</div>';
-        html += '<select class="input" style="width:auto;min-width:80px;padding:4px 8px;font-size:11px" onchange="changeTechShift(\''+tc.id+'\',this.value)">';
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd)">';
+        html += '<div style="font-size:13px;font-weight:600;flex:1">'+esc(tc.name)+'</div>';
+        html += '<select class="input" style="width:auto;min-width:65px;padding:3px 5px;font-size:10px" onchange="changeTechShift(\''+tc.id+'\',this.value)">';
         SHIFTS.forEach(function(s) { html += '<option value="'+s+'"'+(s===(tc.shift||"1st")?' selected':'')+'>'+s+'</option>'; });
         html += '</select>';
-        html += '<button class="btn btn-delete btn-sm" style="width:auto;flex:none" onclick="deleteTechnician(\''+tc.id+'\')">✕</button>';
+        html += '<button class="btn btn-delete btn-sm" style="width:auto;flex:none;padding:4px 8px;font-size:10px" onclick="deleteTechnician(\''+tc.id+'\')">✕</button>';
         html += '</div>';
       });
-      html += '</div>';
     });
-    // Show unassigned if any
-    var unassigned = state.technicians.filter(function(t) { return !t.shift || SHIFTS.indexOf(t.shift) < 0; });
-    if (unassigned.length > 0) {
-      html += '<div style="margin-bottom:16px"><div style="font-size:13px;font-weight:700;color:var(--td);margin-bottom:8px">Unassigned</div>';
-      unassigned.forEach(function(tc) {
-        html += '<div class="tech-manage-row">';
-        html += '<div style="width:36px;height:36px;border-radius:50%;background:var(--sa);color:var(--td);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;font-family:var(--mono)">'+esc(tc.name.charAt(0).toUpperCase())+'</div>';
-        html += '<div class="tech-manage-name">'+esc(tc.name)+'</div>';
-        html += '<select class="input" style="width:auto;min-width:80px;padding:4px 8px;font-size:11px" onchange="changeTechShift(\''+tc.id+'\',this.value)">';
-        SHIFTS.forEach(function(s) { html += '<option value="'+s+'">'+s+'</option>'; });
-        html += '</select>';
-        html += '<button class="btn btn-delete btn-sm" style="width:auto;flex:none" onclick="deleteTechnician(\''+tc.id+'\')">✕</button>';
-        html += '</div>';
-      });
-      html += '</div>';
-    }
+    html += '</div>';
   }
-  html += '</div>';
+  html += '</div></div>';
   el.innerHTML = html;
 }
 
@@ -1188,133 +1421,338 @@ function printReport() { printPDF(state.events.filter(function(e){return e.date=
 function printReportForDate(d) { printPDF(state.events.filter(function(e){return e.date===d}), d, ""); }
 
 function printPDF(evts, date, shift) {
-  var total = evts.reduce(function(s,e){return s+(e.durationMin||0)},0);
-  var ap = [];
-  evts.forEach(function(e){(e.parts||[]).forEach(function(p){ap.push({name:p.name,pn:p.partNumber,qty:p.qty,filler:e.filler,eq:e.equipmentId})})});
-  var h = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Shift Notes '+date+'</title><style>';
-  h += '@page{size:letter;margin:.55in}*{margin:0;padding:0;box-sizing:border-box}body{font-family:Segoe UI,Arial,sans-serif;font-size:10.5pt;color:#1a1a1a;line-height:1.35}';
-  h += '.hdr{border-bottom:3px solid #222;padding-bottom:10px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:flex-end}.hdr h1{font-size:19pt;font-weight:800}';
-  h += '.m{text-align:right;font-size:9.5pt;color:#555}.r3{display:flex;gap:14px;margin-bottom:14px}.sb{background:#f3f3f3;border-radius:5px;padding:9px 14px;flex:1;text-align:center}';
-  h += '.sb .v{font-size:16pt;font-weight:800}.sb .l{font-size:7.5pt;text-transform:uppercase;letter-spacing:1px;color:#666}';
-  h += '.sec{font-size:11pt;font-weight:700;margin:13px 0 6px;border-left:4px solid #e89832;padding-left:8px}';
-  h += 'table{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:9.5pt}th{background:#222;color:#fff;padding:5px 7px;text-align:left;font-size:7.5pt;text-transform:uppercase;letter-spacing:.5px}';
-  h += 'td{padding:5px 7px;border-bottom:1px solid #ddd;vertical-align:top}tr:nth-child(even) td{background:#fafafa}';
-  h += '.sg{margin-top:30px;display:flex;gap:32px}.sg div{flex:1;border-top:1px solid #333;padding-top:5px;font-size:8.5pt;color:#555}';
-  h += '.ft{margin-top:18px;border-top:1px solid #ccc;padding-top:8px;font-size:8pt;color:#888;display:flex;justify-content:space-between}';
-  h += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-  h += '<div class="hdr"><div><h1>SHIFT NOTES</h1><div style="font-size:9.5pt;color:#555;margin-top:2px">Maintenance — Downtime Report</div></div>';
-  h += '<div class="m"><div style="font-size:13pt;font-weight:700">'+date+'</div><div>'+(shift||'Shift Report')+'</div></div></div>';
-  h += '<div class="r3"><div class="sb"><div class="v">'+evts.length+'</div><div class="l">Events</div></div>';
-  h += '<div class="sb"><div class="v">'+durText(total)+'</div><div class="l">Total Downtime</div></div>';
-  h += '<div class="sb"><div class="v">'+ap.length+'</div><div class="l">Parts Used</div></div></div>';
-  h += '<div class="sec">Downtime Events</div>';
-  h += '<table><thead><tr><th>#</th><th>Filler</th><th>Responded</th><th>Equipment</th><th>Start</th><th>Stop</th><th>Duration</th><th>Issue</th><th>Resolution</th><th>Parts</th></tr></thead><tbody>';
-  evts.forEach(function(e,i){
-    var pts=(e.parts||[]).map(function(p){var s=p.name;if(p.partNumber)s+=" ("+p.partNumber+")";if(p.qty>1)s+=" x"+p.qty;return s}).join(", ")||"None";
-    var techNames=(e.techs||[]).map(function(t){return t.name}).join(", ")||"—";
-    h+='<tr><td>'+(i+1)+'</td><td><b>'+e.filler+'</b></td><td>'+techNames+'</td><td>'+(e.equipmentId||"—")+'</td>';
-    h+='<td>'+shortTime(e.startTime)+'</td><td>'+shortTime(e.stopTime)+'</td>';
-    h+='<td>'+durText(e.durationMin)+'</td><td>'+(e.issue||"—")+'</td><td>'+(e.resolution||"—")+'</td><td>'+pts+'</td></tr>';
-  });
-  h += '</tbody></table>';
-  if(ap.length>0){
-    h+='<div class="sec">Parts Summary</div><table><thead><tr><th>Part</th><th>Part #</th><th>Qty</th><th>Filler</th><th>Equipment</th></tr></thead><tbody>';
-    ap.forEach(function(p){h+='<tr><td>'+p.name+'</td><td>'+(p.pn||"—")+'</td><td>'+(p.qty||1)+'</td><td>'+p.filler+'</td><td>'+(p.eq||"—")+'</td></tr>'});
-    h+='</tbody></table>';
-  }
-  h+='<div class="sg"><div>Technician Signature</div><div>Supervisor Signature</div><div>Date</div></div>';
-  h+='<div class="ft"><span>Generated '+new Date().toLocaleString()+'</span><span>Maintenance Downtime Tracker</span></div></body></html>';
+  var h = buildReportHTML(evts, date, shift);
   var w=window.open(URL.createObjectURL(new Blob([h],{type:"text/html"})),"_blank");
   if(w)setTimeout(function(){w.print()},600);
 }
 
+function buildReportHTML(evts, date, shift) {
+  var total = evts.reduce(function(s,e){return s+(e.durationMin||0)},0);
+  var ap = [];
+  evts.forEach(function(e){(e.parts||[]).forEach(function(p){ap.push({name:p.name,pn:p.partNumber,qty:p.qty,filler:e.filler,eq:e.equipmentId,wo:e.workOrder||""})})});
+
+  // Group events by line
+  var lineOrder = FILLERS.slice();
+  var grouped = {};
+  evts.forEach(function(e){ if(!grouped[e.filler]) grouped[e.filler]=[]; grouped[e.filler].push(e); });
+  var linesHit = lineOrder.filter(function(l){return grouped[l] && grouped[l].length > 0});
+
+  var h = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Shift Notes '+formatDate(date)+'</title><style>';
+  h += '@page{size:letter;margin:.4in .45in}*{margin:0;padding:0;box-sizing:border-box}body{font-family:Segoe UI,system-ui,sans-serif;font-size:9.5pt;color:#1a1a1a;line-height:1.35}';
+  h += '.hdr{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:10px;margin-bottom:12px;border-bottom:2.5px solid #1a1a1a}';
+  h += '.hdr h1{font-size:18pt;font-weight:900;letter-spacing:-0.5px}.hdr-sub{font-size:8.5pt;color:#666;margin-top:2px}';
+  h += '.hdr-right{text-align:right}.hdr-date{font-size:13pt;font-weight:800}.hdr-shift{font-size:8pt;color:#555;text-transform:uppercase;letter-spacing:1.5px}';
+  h += '.stats{display:flex;gap:8px;margin-bottom:14px}.stat{flex:1;background:#f5f5f5;border-radius:4px;padding:8px 10px;text-align:center}';
+  h += '.stat-num{font-size:16pt;font-weight:900;color:#1a1a1a}.stat-label{font-size:6.5pt;text-transform:uppercase;letter-spacing:1.2px;color:#888;margin-top:1px}';
+  // Line groups - compact, avoid breaking inside
+  h += '.lg{margin-bottom:14px;page-break-inside:avoid}';
+  h += '.lg-break{page-break-before:always}';
+  h += '.lh{display:flex;align-items:center;gap:8px;padding:5px 10px;background:#1a1a1a;color:#fff;border-radius:3px 3px 0 0;font-size:9.5pt}';
+  h += '.ld{width:8px;height:8px;border-radius:50%;flex-shrink:0}.ln{font-weight:700;letter-spacing:0.5px}.ls{margin-left:auto;font-size:7.5pt;font-weight:400;opacity:.75}';
+  // Table - compact
+  h += 'table{width:100%;border-collapse:collapse;font-size:8.5pt;margin-bottom:0}';
+  h += 'th{background:#f0f0f0;padding:4px 7px;text-align:left;font-size:6.5pt;text-transform:uppercase;letter-spacing:0.7px;color:#555;font-weight:700;border-bottom:1.5px solid #ddd}';
+  h += 'td{padding:5px 7px;border-bottom:1px solid #e8e8e8;vertical-align:top;line-height:1.3}tr:last-child td{border-bottom:none}';
+  h += '.ct{font-family:Consolas,Courier New,monospace;font-size:8pt;color:#666;white-space:nowrap}';
+  h += '.cd{font-weight:700;color:#e89832;white-space:nowrap;text-align:center;font-size:8.5pt}';
+  h += '.ce{font-weight:700;color:#1a1a1a}.cw{font-family:Consolas,monospace;font-size:8pt;color:#888}.cb{font-size:8pt;color:#555}';
+  // Parts summary - flows naturally, page break only if needed
+  h += '.ps{margin-top:16px;page-break-inside:avoid}.pt{font-size:10pt;font-weight:800;text-transform:uppercase;letter-spacing:1px;padding-bottom:5px;margin-bottom:6px;border-bottom:2px solid #1a1a1a}';
+  h += '.ps table{font-size:8.5pt}.ps table th{background:#f5f5f5;padding:4px 7px;border-bottom:1px solid #ddd}.ps table td{padding:4px 7px;border-bottom:1px solid #eee}';
+  // Signatures and footer
+  h += '.sg{margin-top:28px;display:flex;gap:30px}.sg div{flex:1;border-top:1.5px solid #1a1a1a;padding-top:5px;font-size:7.5pt;color:#666;text-transform:uppercase;letter-spacing:1px}';
+  h += '.ft{margin-top:12px;border-top:1px solid #ddd;padding-top:5px;font-size:7pt;color:#aaa;display:flex;justify-content:space-between}';
+  h += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
+
+  // Header
+  h += '<div class="hdr"><div><h1>SHIFT NOTES</h1><div class="hdr-sub">Maintenance Downtime Report</div></div>';
+  h += '<div class="hdr-right"><div class="hdr-date">'+formatDate(date)+'</div><div class="hdr-shift">'+(shift||'Shift Report')+'</div></div></div>';
+
+  // Stats
+  h += '<div class="stats"><div class="stat"><div class="stat-num">'+evts.length+'</div><div class="stat-label">Events</div></div>';
+  h += '<div class="stat"><div class="stat-num">'+durText(total)+'</div><div class="stat-label">Total Downtime</div></div>';
+  h += '<div class="stat"><div class="stat-num">'+ap.length+'</div><div class="stat-label">Parts Used</div></div>';
+  h += '<div class="stat"><div class="stat-num">'+linesHit.length+'</div><div class="stat-label">Lines Affected</div></div></div>';
+
+  // Grouped by line with page breaks every 2 groups
+  var groupCount = 0;
+  linesHit.forEach(function(line) {
+    var lineEvts = grouped[line];
+    var lineTotal = lineEvts.reduce(function(s,e){return s+(e.durationMin||0)},0);
+    var fc = FILLER_COLORS[line] || "#e89832";
+    // Add page break before 5th, 9th group etc. to fit ~4 line groups per page
+    var needsBreak = groupCount > 0 && groupCount % 4 === 0;
+    h += '<div class="lg'+(needsBreak?' lg-break':'')+'"><div class="lh"><div class="ld" style="background:'+fc+'"></div><span class="ln">'+line.toUpperCase()+'</span>';
+    h += '<span class="ls">'+lineEvts.length+' call'+(lineEvts.length>1?"s":"")+" &bull; "+durText(lineTotal)+'</span></div>';
+    h += '<table><thead><tr><th>Responded</th><th>Equipment</th><th>W.O.#</th><th>Duration</th><th>Issue</th><th>Resolution</th></tr></thead><tbody>';
+    lineEvts.forEach(function(e) {
+      var techNames=(e.techs||[]).map(function(t){return t.name}).join(", ")||"—";
+      h += '<tr><td class="cb">'+techNames+'</td><td class="ce">'+(e.equipmentId||"—")+'</td>';
+      h += '<td class="cw">'+(e.workOrder||"—")+'</td>';
+      h += '<td class="cd">'+durText(e.durationMin)+'</td><td>'+(e.issue||"—")+'</td><td>'+(e.resolution||"—")+'</td></tr>';
+    });
+    h += '</tbody></table></div>';
+    groupCount++;
+  });
+
+  // Parts summary
+  if(ap.length>0){
+    h += '<div class="ps"><div class="pt">Parts Summary</div>';
+    h += '<table><thead><tr><th>Part</th><th>Part #</th><th>Qty</th><th>Line</th><th>Equipment</th><th>W.O.#</th></tr></thead><tbody>';
+    ap.forEach(function(p){h+='<tr><td>'+p.name+'</td><td>'+(p.pn||"—")+'</td><td>'+(p.qty||1)+'</td><td>'+p.filler+'</td><td>'+(p.eq||"—")+'</td><td>'+(p.wo||"—")+'</td></tr>'});
+    h += '</tbody></table></div>';
+  }
+
+  h += '<div class="sg"><div>Technician Signature</div><div>Supervisor Signature</div><div>Date</div></div>';
+  h += '<div class="ft"><span>Generated '+new Date().toLocaleString()+'</span><span>Maintenance Downtime Tracker</span></div></body></html>';
+  return h;
+}
+
 // ═══════════════════════════════════════
-// IDENTITY / WHO AM I
+// WORK ORDERS TAB
+// ═══════════════════════════════════════
+function renderWorkOrders(el) {
+  // Collect all events that have work orders
+  var woEvents = state.events.filter(function(e) { return e.workOrder && e.workOrder.trim(); });
+  
+  // Group by work order number
+  var woMap = {};
+  woEvents.forEach(function(e) {
+    var wo = e.workOrder.trim();
+    if (!woMap[wo]) woMap[wo] = [];
+    woMap[wo].push(e);
+  });
+  var woKeys = Object.keys(woMap).sort();
+  
+  var html = '<div class="card">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">';
+  html += '<div style="font-size:15px;font-weight:700">Work Order Tracking</div>';
+  html += '<div style="font-size:12px;color:var(--td)">'+woKeys.length+' work orders</div></div>';
+  html += '<p style="color:var(--td);font-size:13px;margin-bottom:16px">All events that have a work order number assigned, grouped by W.O.#</p>';
+  
+  if (woKeys.length === 0) {
+    html += '<div class="empty">No work orders yet. Add a work order number when logging or editing events.</div>';
+  } else {
+    woKeys.forEach(function(wo) {
+      var events = woMap[wo];
+      var totalMin = events.reduce(function(s,e){return s+(e.durationMin||0)},0);
+      var lines = [];
+      var creators = [];
+      events.forEach(function(e) {
+        if (lines.indexOf(e.filler) < 0) lines.push(e.filler);
+        if (e.startedBy && creators.indexOf(e.startedBy) < 0) creators.push(e.startedBy);
+      });
+      var firstDate = events.length > 0 ? events[events.length-1].date : "";
+      
+      html += '<div style="background:var(--sa);border:1px solid var(--bd);border-radius:10px;padding:14px;margin-bottom:10px">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px">';
+      html += '<div style="font-size:16px;font-weight:800;font-family:var(--mono);color:var(--ac)">'+esc(wo)+'</div>';
+      html += '<span class="badge" style="background:#e8983220;color:#e89832">'+events.length+' call'+(events.length>1?"s":"")+'  •  '+durText(totalMin)+'</span>';
+      html += '</div>';
+      
+      html += '<div class="event-field"><span class="event-field-label">Lines: </span>';
+      lines.forEach(function(l) {
+        var fc = FILLER_COLORS[l] || "#e89832";
+        html += '<span class="tag" style="background:'+fc+'18;color:'+fc+'">'+esc(l)+'</span>';
+      });
+      html += '</div>';
+      
+      if (creators.length > 0) {
+        html += '<div class="event-field"><span class="event-field-label">Created By: </span><span style="color:var(--bl)">'+creators.map(function(c){return esc(c)}).join(", ")+'</span></div>';
+      }
+      html += '<div class="event-field"><span class="event-field-label">First Logged: </span><span style="font-family:var(--mono);font-size:12px">'+formatDate(firstDate)+'</span></div>';
+      
+      // Show individual events
+      html += '<div style="margin-top:10px;border-top:1px solid var(--bd);padding-top:8px">';
+      events.forEach(function(e) {
+        var fc = FILLER_COLORS[e.filler] || "#e89832";
+        html += '<div style="padding:6px 0;border-bottom:1px solid var(--bd);font-size:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
+        html += '<span class="tag" style="background:'+fc+'18;color:'+fc+'">'+esc(e.filler)+'</span>';
+        html += '<span style="font-family:var(--mono);color:var(--td)">'+formatDate(e.date)+'</span>';
+        html += '<span style="font-family:var(--mono)">'+shortTime(e.startTime)+' → '+shortTime(e.stopTime)+'</span>';
+        html += '<span class="badge" style="background:#e8983220;color:#e89832">'+durText(e.durationMin)+'</span>';
+        if (e.issue) html += '<span style="color:var(--td)">'+esc(e.issue)+'</span>';
+        html += '</div>';
+      });
+      html += '</div></div>';
+    });
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// ═══════════════════════════════════════
+// ACTIVITY LOG
+// ═══════════════════════════════════════
+async function loadAuditLog() {
+  try {
+    state.auditLog = await api("GET", "/api/audit-log?limit=200");
+  } catch(e) { state.auditLog = []; }
+}
+
+function renderAuditLog(el) {
+  loadAuditLog().then(function() {
+    var html = '<div class="card">';
+    html += '<div style="font-size:15px;font-weight:700;margin-bottom:14px">Activity Log</div>';
+    html += '<p style="color:var(--td);font-size:13px;margin-bottom:16px">Every edit and delete is recorded here with who performed the action and when.</p>';
+
+    if (!state.auditLog || state.auditLog.length === 0) {
+      html += '<div class="empty">No activity recorded yet. Edits and deletes will appear here.</div>';
+    } else {
+      state.auditLog.forEach(function(entry) {
+        var d = new Date(entry.created_at);
+        var dateStr = String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")+"-"+String(d.getFullYear()).slice(2);
+        var timeStr = d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
+        var actionColor = entry.action === "delete" ? "var(--rd)" : entry.action === "edit" ? "var(--ac)" : "var(--bl)";
+        html += '<div style="padding:10px 0;border-bottom:1px solid var(--bd);display:flex;gap:10px;align-items:flex-start">';
+        html += '<div style="min-width:60px;text-align:center"><span class="badge" style="background:'+actionColor+'20;color:'+actionColor+'">'+esc(entry.action||"").toUpperCase()+'</span></div>';
+        html += '<div style="flex:1;min-width:0">';
+        html += '<div style="font-size:13px;color:var(--tx)">'+esc(entry.details||"")+'</div>';
+        html += '<div style="font-size:11px;color:var(--td);margin-top:2px">';
+        if (entry.performed_by) html += 'By <strong>'+esc(entry.performed_by)+'</strong> • ';
+        html += dateStr + ' ' + timeStr;
+        html += '</div></div></div>';
+      });
+    }
+    html += '</div>';
+    el.innerHTML = html;
+  });
+}
+
+// ═══════════════════════════════════════
+// SHIFT NOTES DOWNLOAD
+// ═══════════════════════════════════════
+function downloadShiftNotes() {
+  var evts = state.events.filter(function(e){return e.date===today()});
+  if (evts.length === 0) { alert("No events to export."); return; }
+  
+  // Build the formatted report HTML
+  var h = buildReportHTML(evts, today(), state.shiftLabel);
+  
+  // Open in new window and trigger print dialog (user selects "Save as PDF" as destination)
+  var w = window.open(URL.createObjectURL(new Blob([h],{type:"text/html"})),"_blank");
+  if (w) {
+    setTimeout(function(){ w.print(); }, 600);
+  }
+}
+
+// ═══════════════════════════════════════
+// LOGIN SYSTEM
 // ═══════════════════════════════════════
 function renderLoggedInBar() {
   var bar = document.getElementById("logged-in-bar");
   if (!bar) return;
   if (!state.currentUser) {
-    bar.innerHTML = '<span style="color:var(--rd)">⚠ Not signed in</span><button onclick="showIdentityModal()" style="background:var(--ac);color:#111;border:none;border-radius:4px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--sans)">Sign In</button>';
+    bar.innerHTML = '<span style="color:var(--rd)">⚠ Not logged in</span><button onclick="showLoginScreen()" style="background:var(--ac);color:#111;border:none;border-radius:4px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--sans)">Log In</button>';
     return;
   }
   var shiftColors = {"1st":"#4090e0","2nd":"#e89832","3rd":"#a060c8"};
   var sc = shiftColors[state.currentUser.shift] || "var(--bl)";
-  bar.innerHTML = '<div style="display:flex;align-items:center;gap:8px"><div style="width:22px;height:22px;border-radius:50%;background:'+sc+'30;color:'+sc+';display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10px;font-family:var(--mono)">'+esc((state.currentUser.name||"?").charAt(0))+'</div><span style="color:var(--tx);font-weight:600">'+esc(state.currentUser.name)+'</span><span class="tag" style="background:'+sc+'18;color:'+sc+'">'+(state.currentUser.shift||"1st")+' Shift</span></div><button onclick="showIdentityModal()" style="background:transparent;color:var(--td);border:1px solid var(--bd);border-radius:4px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--sans)">Switch</button>';
+  bar.innerHTML = '<div style="display:flex;align-items:center;gap:8px"><div style="width:22px;height:22px;border-radius:50%;background:'+sc+'30;color:'+sc+';display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10px;font-family:var(--mono)">'+esc((state.currentUser.name||"?").charAt(0))+'</div><span style="color:var(--tx);font-weight:600">'+esc(state.currentUser.name)+'</span><span class="tag" style="background:'+sc+'18;color:'+sc+'">'+(state.currentUser.shift||"")+' Shift</span></div><button onclick="logout()" style="background:transparent;color:var(--td);border:1px solid var(--bd);border-radius:4px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--sans)">Log Out</button>';
 }
 
-function showIdentityModal() {
-  document.body.style.overflow = "hidden";
-  var shiftColors = {"1st":"#4090e0","2nd":"#e89832","3rd":"#a060c8"};
-  var html = '<div class="identity-modal">';
+function showLoginScreen() {
+  document.body.style.overflow = "hidden"; document.body.classList.add("modal-open");
+  var html = '<div class="identity-modal" style="position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px;overflow-y:auto;-webkit-overflow-scrolling:touch">';
   html += '<div class="identity-box">';
-  html += '<img src="/icon-192.png" style="width:56px;height:56px;border-radius:12px;margin-bottom:12px">';
-  html += '<div style="font-size:20px;font-weight:800;margin-bottom:4px">Maintenance Tracker</div>';
-  html += '<div style="font-size:13px;color:var(--td);margin-bottom:20px">Who are you?</div>';
+  html += '<img src="/icon-192.png" style="width:64px;height:64px;border-radius:14px;margin-bottom:14px">';
+  html += '<div style="font-size:22px;font-weight:800;margin-bottom:4px">Maintenance Tracker</div>';
+  html += '<div style="font-size:13px;color:var(--td);margin-bottom:24px">Log in to continue</div>';
+  html += '<div id="login-error" class="login-error"></div>';
 
-  if (state.technicians.length > 0) {
-    var SHIFTS = ["1st","2nd","3rd"];
-    SHIFTS.forEach(function(shift) {
-      var techs = state.technicians.filter(function(t) { return (t.shift||"1st") === shift; });
-      if (techs.length === 0) return;
-      var sc = shiftColors[shift] || "var(--td)";
-      html += '<div style="font-size:11px;font-weight:700;color:'+sc+';text-align:left;margin-bottom:6px;margin-top:12px">'+shift+' SHIFT</div>';
-      techs.forEach(function(tc) {
-        var isCurrent = state.currentUser && state.currentUser.id === tc.id;
-        html += '<button class="identity-name-btn'+(isCurrent?" identity-current":"")+'" onclick="selectIdentity(\''+tc.id+'\')">';
-        html += '<div class="identity-initial" style="background:'+sc+'20;color:'+sc+'">'+esc(tc.name.charAt(0))+'</div>';
-        html += '<div style="flex:1">'+esc(tc.name)+'</div>';
-        if (isCurrent) html += '<span style="color:var(--ac);font-size:12px">✓ Current</span>';
-        html += '</button>';
-      });
+  // Name select dropdown - only show enabled shifts (2nd shift)
+  html += '<div class="login-field">';
+  html += '<label class="label">Select Your Name</label>';
+  html += '<select class="input" id="login-name" style="font-size:16px;padding:12px;-webkit-appearance:menulist">';
+  html += '<option value="">— SELECT —</option>';
+  var allowedLoginShifts = ["2nd"];
+  allowedLoginShifts.forEach(function(shift) {
+    var techs = state.technicians.filter(function(t) { return (t.shift||"1st") === shift; });
+    if (techs.length === 0) return;
+    html += '<optgroup label="'+shift+' Shift">';
+    techs.forEach(function(tc) {
+      html += '<option value="'+esc(tc.name)+'">'+esc(tc.name)+'</option>';
     });
-  } else {
-    html += '<div style="color:var(--td);margin:16px 0;font-size:13px">No technicians added yet.</div>';
-  }
+    html += '</optgroup>';
+  });
+  html += '</select></div>';
 
-  html += '<div style="margin-top:16px;border-top:1px solid var(--bd);padding-top:16px">';
-  html += '<div style="font-size:11px;color:var(--td);margin-bottom:8px">Not on the list?</div>';
-  html += '<div style="display:flex;gap:8px">';
-  html += '<input class="input" id="identity-new-name" placeholder="YOUR NAME" style="flex:1">';
-  html += '<select class="input" id="identity-new-shift" style="width:auto;min-width:80px">';
-  html += '<option value="1st">1st</option><option value="2nd">2nd</option><option value="3rd">3rd</option>';
-  html += '</select>';
-  html += '<button class="btn btn-primary" style="width:auto;padding:10px 14px" onclick="addAndSelectIdentity()">Add</button>';
-  html += '</div></div>';
+  // Password field - use type=tel for numeric passwords on iOS PWA
+  html += '<div class="login-field">';
+  html += '<label class="label">Password</label>';
+  html += '<input class="input" type="tel" inputmode="numeric" id="login-password" placeholder="ENTER PASSWORD" style="font-size:16px;padding:12px;letter-spacing:4px;-webkit-user-select:text;user-select:text;-webkit-text-security:disc" onkeydown="if(event.key===\'Enter\')doLogin()">';
+  html += '</div>';
+
+  // Login button
+  html += '<button class="btn btn-primary" style="font-size:16px;padding:14px;margin-top:8px" id="login-btn" onclick="doLogin()">LOG IN</button>';
 
   html += '</div></div>';
   document.getElementById("identity-root").innerHTML = html;
+  // Focus password after name is selected
+  var nameEl = document.getElementById("login-name");
+  if (nameEl) {
+    nameEl.addEventListener("change", function() {
+      setTimeout(function() {
+        var passEl = document.getElementById("login-password");
+        if (passEl) passEl.focus();
+      }, 100);
+    });
+  }
 }
 
-function selectIdentity(techId) {
-  var tech = state.technicians.find(function(t) { return t.id === techId; });
-  if (!tech) return;
-  state.currentUser = { id: tech.id, name: tech.name, shift: tech.shift || "1st" };
-  try { localStorage.setItem("mt_current_user", JSON.stringify(state.currentUser)); } catch(e) {}
-  document.getElementById("identity-root").innerHTML = "";
-  document.body.style.overflow = "";
+async function doLogin() {
+  var nameSelect = document.getElementById("login-name");
+  var passInput = document.getElementById("login-password");
+  var errorDiv = document.getElementById("login-error");
+  var loginBtn = document.getElementById("login-btn");
+
+  var name = nameSelect ? nameSelect.value : "";
+  var password = passInput ? passInput.value : "";
+
+  if (!name) {
+    errorDiv.textContent = "Please select your name";
+    errorDiv.style.display = "block";
+    return;
+  }
+  if (!password) {
+    errorDiv.textContent = "Please enter your password";
+    errorDiv.style.display = "block";
+    return;
+  }
+
+  loginBtn.textContent = "LOGGING IN...";
+  loginBtn.style.opacity = "0.6";
+  errorDiv.style.display = "none";
+
+  try {
+    var result = await api("POST", "/api/auth/login", { name: name, password: password });
+    if (result.error) {
+      errorDiv.textContent = result.error;
+      errorDiv.style.display = "block";
+      loginBtn.textContent = "LOG IN";
+      loginBtn.style.opacity = "1";
+      return;
+    }
+    state.currentUser = { id: result.id, name: result.name, shift: result.shift || "1st" };
+    try { localStorage.setItem("mt_current_user", JSON.stringify(state.currentUser)); } catch(e) {}
+    document.getElementById("identity-root").innerHTML = "";
+    document.body.style.overflow = ""; document.body.classList.remove("modal-open");
+    renderLoggedInBar();
+    render();
+  } catch (err) {
+    errorDiv.textContent = "Login failed. Please try again.";
+    errorDiv.style.display = "block";
+    loginBtn.textContent = "LOG IN";
+    loginBtn.style.opacity = "1";
+  }
+}
+
+function logout() {
+  state.currentUser = null;
+  try { localStorage.removeItem("mt_current_user"); } catch(e) {}
   renderLoggedInBar();
   render();
-}
-
-async function addAndSelectIdentity() {
-  var nameInput = document.getElementById("identity-new-name");
-  var shiftSel = document.getElementById("identity-new-shift");
-  var name = nameInput.value.trim();
-  if (!name) return;
-  var shift = shiftSel ? shiftSel.value : "1st";
-  var result = await api("POST", "/api/technicians", {name: upper(name), shift: shift});
-  if (result.error) { alert(result.error); return; }
-  await loadAll();
-  // Find the newly added tech
-  var newTech = state.technicians.find(function(t) { return t.name === upper(name); });
-  if (newTech) {
-    selectIdentity(newTech.id);
-  } else {
-    document.getElementById("identity-root").innerHTML = "";
-    document.body.style.overflow = "";
-    render();
-  }
+  showLoginScreen();
 }
 
 // ═══════════════════════════════════════
@@ -1331,9 +1769,9 @@ loadAll().then(function() {
   }
   renderLoggedInBar();
   render();
-  // Show identity picker if no user selected
+  // Show login screen if no user logged in
   if (!state.currentUser) {
-    showIdentityModal();
+    showLoginScreen();
   }
 });
 
